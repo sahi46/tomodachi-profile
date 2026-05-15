@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useCallback } from 'react'
 import Moveable from 'react-moveable'
 import { CanvasElement, Background } from '@/types'
 import QuestionCard from './QuestionCard'
@@ -14,28 +14,25 @@ interface Props {
 }
 
 function getBackgroundStyle(bg: Background): React.CSSProperties {
-  if (bg.type === 'solid') {
-    return { backgroundColor: bg.color }
-  }
-  return {
-    background: `linear-gradient(${bg.direction}, ${bg.from}, ${bg.to})`,
-  }
+  if (bg.type === 'solid') return { backgroundColor: bg.color }
+  return { background: `linear-gradient(${bg.direction}, ${bg.from}, ${bg.to})` }
 }
 
 export default function ProfileCanvas({ background, elements, onElementUpdate, onElementSelect, selectedId }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null)
-  const targetRef = useRef<HTMLDivElement | null>(null)
-  const [targets, setTargets] = useState<Map<string, HTMLDivElement>>(new Map())
+  // useRefでMapを管理することで再レンダーを防ぐ
+  const elRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
-  const setElementRef = (id: string, el: HTMLDivElement | null) => {
-    if (el) {
-      setTargets(prev => new Map(prev).set(id, el))
-      if (id === selectedId) targetRef.current = el
+  const setRef = useCallback((id: string) => (node: HTMLDivElement | null) => {
+    if (node) {
+      elRefs.current.set(id, node)
+    } else {
+      elRefs.current.delete(id)
     }
-  }
+  }, [])
 
   const selectedElement = elements.find(e => e.id === selectedId)
-  const selectedTarget = selectedId ? targets.get(selectedId) : null
+  const selectedTarget = selectedId ? elRefs.current.get(selectedId) ?? null : null
 
   return (
     <div className="relative flex-shrink-0" style={{ width: 390, height: 690 }}>
@@ -50,7 +47,7 @@ export default function ProfileCanvas({ background, elements, onElementUpdate, o
         {elements.map((el) => (
           <div
             key={el.id}
-            ref={(node) => setElementRef(el.id, node)}
+            ref={setRef(el.id)}
             className="absolute cursor-grab active:cursor-grabbing"
             style={{
               left: el.position.x,
@@ -58,18 +55,17 @@ export default function ProfileCanvas({ background, elements, onElementUpdate, o
               transform: `rotate(${el.transform.rotation}deg) scale(${el.transform.scale})`,
               transformOrigin: 'center center',
               zIndex: el.z_index,
-              outline: selectedId === el.id ? '2px solid #60a5fa' : 'none',
+              outline: selectedId === el.id ? '2px dashed #60a5fa' : 'none',
               outlineOffset: '4px',
               borderRadius: '4px',
             }}
             onClick={(e) => {
               e.stopPropagation()
               onElementSelect(el.id)
-              if (targets.get(el.id)) targetRef.current = targets.get(el.id)!
             }}
           >
             {el.type === 'sticker' && (
-              <span className="text-5xl leading-none select-none" style={{ fontSize: 56 }}>
+              <span style={{ fontSize: 56, lineHeight: 1, display: 'block', userSelect: 'none' }}>
                 {(el.content as { emoji: string }).emoji}
               </span>
             )}
@@ -82,8 +78,8 @@ export default function ProfileCanvas({ background, elements, onElementUpdate, o
             )}
             {el.type === 'text' && (
               <span
-                className="text-white font-bold text-xl select-none"
-                style={{ textShadow: '0 1px 4px rgba(0,0,0,0.3)', whiteSpace: 'nowrap' }}
+                className="font-bold text-xl"
+                style={{ color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)', whiteSpace: 'nowrap', userSelect: 'none' }}
               >
                 {(el.content as { text: string }).text}
               </span>
@@ -95,7 +91,6 @@ export default function ProfileCanvas({ background, elements, onElementUpdate, o
       {selectedTarget && selectedElement && (
         <Moveable
           target={selectedTarget}
-          container={canvasRef.current}
           draggable
           rotatable
           scalable
@@ -110,23 +105,24 @@ export default function ProfileCanvas({ background, elements, onElementUpdate, o
           onDragEnd={({ target }) => {
             onElementUpdate(
               selectedElement.id,
-              { x: parseFloat(target.style.left), y: parseFloat(target.style.top) },
+              { x: parseFloat(target.style.left || '0'), y: parseFloat(target.style.top || '0') },
               selectedElement.transform
             )
           }}
           onRotate={({ target, rotation }) => {
-            const scale = selectedElement.transform.scale
-            target.style.transform = `rotate(${rotation}deg) scale(${scale})`
+            target.style.transform = `rotate(${rotation}deg) scale(${selectedElement.transform.scale})`
           }}
           onRotateEnd={({ target }) => {
             const match = target.style.transform.match(/rotate\(([-\d.]+)deg\)/)
             const rotation = match ? parseFloat(match[1]) : 0
-            onElementUpdate(selectedElement.id, selectedElement.position, { ...selectedElement.transform, rotation })
+            onElementUpdate(
+              selectedElement.id,
+              selectedElement.position,
+              { ...selectedElement.transform, rotation }
+            )
           }}
           onScale={({ target, scale, drag }) => {
-            const s = scale[0]
-            const rotation = selectedElement.transform.rotation
-            target.style.transform = `rotate(${rotation}deg) scale(${s})`
+            target.style.transform = `rotate(${selectedElement.transform.rotation}deg) scale(${scale[0]})`
             target.style.left = `${drag.left}px`
             target.style.top = `${drag.top}px`
           }}
@@ -135,7 +131,7 @@ export default function ProfileCanvas({ background, elements, onElementUpdate, o
             const scale = match ? parseFloat(match[1]) : 1
             onElementUpdate(
               selectedElement.id,
-              { x: parseFloat(target.style.left), y: parseFloat(target.style.top) },
+              { x: parseFloat(target.style.left || '0'), y: parseFloat(target.style.top || '0') },
               { ...selectedElement.transform, scale }
             )
           }}
