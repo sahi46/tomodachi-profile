@@ -13,6 +13,12 @@ interface Response {
   created_at: string
 }
 
+interface CustomQuestion {
+  id: string
+  question: string
+  design: string
+}
+
 function ProfileThumb({ background }: { background: Background }) {
   const style: React.CSSProperties =
     background.type === 'solid'
@@ -23,12 +29,26 @@ function ProfileThumb({ background }: { background: Background }) {
 
 const ACCENT = '#d946ef'
 
-const TABS = [
+const EMOJI_LIST = [
+  '😊','🌸','⭐','💕','🎀','🌈','🍓','🐱','🌙','💫',
+  '🦋','🍀','🎵','💖','🌺','🐰','✨','🎠','🍡','🌻',
+  '🫶','🥹','💝','🌷','🎪','🩷','🩵','🌟','🎶','🍭',
+  '🐻','🌝','🎂','🌊','🦄','🍉','🎸','🪷','🫧','🧸',
+]
+
+const DESIGNS = ['pink', 'purple', 'mint', 'yellow', 'blue'] as const
+const DESIGN_COLORS: Record<string, string> = {
+  pink: '#f9a8d4', purple: '#c4b5fd', mint: '#6ee7b7', yellow: '#fcd34d', blue: '#93c5fd',
+}
+
+type TabKey = 'library' | 'created' | 'parts' | 'settings'
+
+const TABS: Array<{ key: TabKey; label: string; icon: (a: boolean) => React.ReactNode }> = [
   {
     key: 'library',
     label: 'ライブラリ',
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.6} strokeLinecap="round">
+    icon: (a) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={a ? 2.2 : 1.6} strokeLinecap="round">
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
       </svg>
@@ -37,8 +57,8 @@ const TABS = [
   {
     key: 'created',
     label: 'つくった',
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.6} strokeLinecap="round">
+    icon: (a) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={a ? 2.2 : 1.6} strokeLinecap="round">
         <rect x="3" y="3" width="7" height="7" rx="1.5"/>
         <rect x="14" y="3" width="7" height="7" rx="1.5"/>
         <rect x="3" y="14" width="7" height="7" rx="1.5"/>
@@ -47,10 +67,19 @@ const TABS = [
     ),
   },
   {
+    key: 'parts',
+    label: 'パーツ',
+    icon: (a) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={a ? 2.2 : 1.6} strokeLinecap="round">
+        <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 19.1l-6.2 3.3 2.4-7.4L2 9.4h7.6z"/>
+      </svg>
+    ),
+  },
+  {
     key: 'settings',
     label: 'せってい',
-    icon: (active: boolean) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.6} strokeLinecap="round">
+    icon: (a) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={a ? 2.2 : 1.6} strokeLinecap="round">
         <circle cx="12" cy="8" r="4"/>
         <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
       </svg>
@@ -60,10 +89,12 @@ const TABS = [
 
 const getTemplateIds = (): string[] => JSON.parse(localStorage.getItem('tomo_profile_ids') || '[]')
 const getBookIds     = (): string[] => JSON.parse(localStorage.getItem('tomo_book_ids')    || '[]')
+const getCustomStickers  = (): string[]          => JSON.parse(localStorage.getItem('tomo_custom_stickers')  || '[]')
+const getCustomQuestions = (): CustomQuestion[]  => JSON.parse(localStorage.getItem('tomo_custom_questions') || '[]')
 
 export default function LibraryPage() {
   const router = useRouter()
-  const [activeTab, setActiveTab]       = useState<'library' | 'created' | 'settings'>('library')
+  const [activeTab, setActiveTab]       = useState<TabKey>('library')
   const [templates, setTemplates]       = useState<Profile[]>([])
   const [books, setBooks]               = useState<Profile[]>([])
   const [responses, setResponses]       = useState<Response[]>([])
@@ -77,9 +108,17 @@ export default function LibraryPage() {
 
   // 長押し削除メニュー
   const [longPressMenu, setLongPressMenu] = useState<{ profile: Profile; type: 'template' | 'book' } | null>(null)
-  const lpTimer   = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lpFired   = useRef(false)
-  const lpStart   = useRef({ x: 0, y: 0 })
+  const lpTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lpFired = useRef(false)
+  const lpStart = useRef({ x: 0, y: 0 })
+
+  // パーツ
+  const [customStickers,  setCustomStickers]  = useState<string[]>([])
+  const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([])
+  const [emojiSheetOpen,  setEmojiSheetOpen]  = useState(false)
+  const [qFormOpen,       setQFormOpen]       = useState(false)
+  const [qInput,          setQInput]          = useState('')
+  const [qDesign,         setQDesign]         = useState('pink')
 
   const onLongPressStart = (e: React.PointerEvent, profile: Profile, type: 'template' | 'book') => {
     lpFired.current = false
@@ -115,21 +154,19 @@ export default function LibraryPage() {
   }
 
   useEffect(() => {
+    setCustomStickers(getCustomStickers())
+    setCustomQuestions(getCustomQuestions())
+
     const load = async () => {
       const templateIds = getTemplateIds()
       const bookIds     = getBookIds()
       const allIds      = [...new Set([...templateIds, ...bookIds])]
       if (allIds.length === 0) return
 
-      const { data: pData } = await supabase
-        .from('profiles').select('*').in('id', allIds)
+      const { data: pData } = await supabase.from('profiles').select('*').in('id', allIds)
       if (pData) {
-        setTemplates(
-          templateIds.map(id => pData.find(p => p.id === id)!).filter(Boolean)
-        )
-        setBooks(
-          bookIds.map(id => pData.find(p => p.id === id)!).filter(Boolean)
-        )
+        setTemplates(templateIds.map(id => pData.find(p => p.id === id)!).filter(Boolean))
+        setBooks(bookIds.map(id => pData.find(p => p.id === id)!).filter(Boolean))
       }
 
       if (bookIds.length > 0) {
@@ -143,13 +180,10 @@ export default function LibraryPage() {
 
   const responseCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const r of responses) {
-      counts[r.profile_id] = (counts[r.profile_id] ?? 0) + 1
-    }
+    for (const r of responses) counts[r.profile_id] = (counts[r.profile_id] ?? 0) + 1
     return counts
   }, [responses])
 
-  // 雛形から本を作ってシェア
   const publishAsBook = (p: Profile) => {
     const ids = getBookIds()
     if (!ids.includes(p.id)) {
@@ -168,7 +202,6 @@ export default function LibraryPage() {
     setTimeout(() => setUrlCopied(false), 2000)
   }
 
-  // 新しい雛形を作成（つくったタブ）
   const createTemplate = async () => {
     setLoading(true)
     const slug = Math.random().toString(36).slice(2, 10)
@@ -177,7 +210,6 @@ export default function LibraryPage() {
       title: 'わたしのプロフィール',
       background: { type: 'gradient', from: '#ffd6e7', to: '#c9b8ff', direction: '135deg' },
     }).select().single()
-
     if (data) {
       const ids = getTemplateIds()
       localStorage.setItem('tomo_profile_ids', JSON.stringify([data.id, ...ids]))
@@ -186,14 +218,46 @@ export default function LibraryPage() {
     setLoading(false)
   }
 
+  // パーツ操作
+  const addCustomSticker = (emoji: string) => {
+    const prev = getCustomStickers()
+    if (prev.includes(emoji)) return
+    const next = [emoji, ...prev]
+    localStorage.setItem('tomo_custom_stickers', JSON.stringify(next))
+    setCustomStickers(next)
+    setEmojiSheetOpen(false)
+  }
+
+  const removeCustomSticker = (emoji: string) => {
+    const next = getCustomStickers().filter(e => e !== emoji)
+    localStorage.setItem('tomo_custom_stickers', JSON.stringify(next))
+    setCustomStickers(next)
+  }
+
+  const saveCustomQuestion = () => {
+    if (!qInput.trim()) return
+    const q: CustomQuestion = { id: Date.now().toString(), question: qInput.trim(), design: qDesign }
+    const next = [q, ...getCustomQuestions()]
+    localStorage.setItem('tomo_custom_questions', JSON.stringify(next))
+    setCustomQuestions(next)
+    setQInput('')
+    setQFormOpen(false)
+  }
+
+  const removeCustomQuestion = (id: string) => {
+    const next = getCustomQuestions().filter(q => q.id !== id)
+    localStorage.setItem('tomo_custom_questions', JSON.stringify(next))
+    setCustomQuestions(next)
+  }
+
+  const tabTitle = { library: 'ライブラリ', created: 'つくった', parts: 'パーツ', settings: 'せってい' }
+
   return (
     <div className="min-h-screen flex flex-col bg-white" style={{ userSelect: 'none' }}>
       {/* ヘッダー */}
       <div className="pt-safe shrink-0" style={{ backgroundColor: ACCENT }}>
         <div className="px-5 pt-3 pb-4">
-          <h1 className="text-white text-xl font-black tracking-tight">
-            {activeTab === 'library' ? 'ライブラリ' : activeTab === 'created' ? 'つくった' : 'せってい'}
-          </h1>
+          <h1 className="text-white text-xl font-black tracking-tight">{tabTitle[activeTab]}</h1>
         </div>
       </div>
 
@@ -229,17 +293,11 @@ export default function LibraryPage() {
                     >
                       <ProfileThumb background={p.background} />
                       {count > 0 && (
-                        <div
-                          className="absolute top-2 right-2 min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5"
-                          style={{ backgroundColor: ACCENT }}
-                        >
+                        <div className="absolute top-2 right-2 min-w-[20px] h-5 rounded-full flex items-center justify-center px-1.5" style={{ backgroundColor: ACCENT }}>
                           <span className="text-white text-[10px] font-black">{count}</span>
                         </div>
                       )}
-                      <div
-                        className="absolute bottom-0 left-0 right-0 p-2"
-                        style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5), transparent)' }}
-                      >
+                      <div className="absolute bottom-0 left-0 right-0 p-2" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5), transparent)' }}>
                         <p className="text-white text-[8px] font-bold truncate">{p.title}</p>
                         <p className="text-white/60 text-[7px]">{count > 0 ? `${count}件の回答` : '回答なし'}</p>
                       </div>
@@ -279,16 +337,141 @@ export default function LibraryPage() {
                     style={{ aspectRatio: '9/16' }}
                   >
                     <ProfileThumb background={p.background} />
-                    <div
-                      className="absolute bottom-0 left-0 right-0 p-2"
-                      style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)' }}
-                    >
+                    <div className="absolute bottom-0 left-0 right-0 p-2" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)' }}>
                       <p className="text-white text-[8px] font-bold truncate">{p.title}</p>
                     </div>
                   </button>
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── パーツタブ ── */}
+        {activeTab === 'parts' && (
+          <div className="px-4 pt-4 space-y-6">
+
+            {/* スタンプセクション */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-base font-black text-gray-800">スタンプ</p>
+                <button
+                  onClick={() => setEmojiSheetOpen(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-white text-xs font-bold active:scale-95 transition-transform"
+                  style={{ backgroundColor: ACCENT }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  追加
+                </button>
+              </div>
+              {customStickers.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-8 text-gray-300">
+                  <span className="text-4xl">🌟</span>
+                  <p className="text-xs">まだスタンプがありません</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-6 gap-2">
+                  {customStickers.map((emoji, i) => (
+                    <div key={i} className="relative">
+                      <div className="h-12 flex items-center justify-center text-2xl rounded-xl bg-gray-50">
+                        {emoji}
+                      </div>
+                      <button
+                        onClick={() => removeCustomSticker(emoji)}
+                        className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gray-300 text-gray-600 text-[10px] flex items-center justify-center leading-none active:bg-rose-200 active:text-rose-600 transition-colors"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 仕切り */}
+            <div className="h-px bg-gray-100" />
+
+            {/* 質問カードセクション */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-base font-black text-gray-800">質問カード</p>
+                <button
+                  onClick={() => setQFormOpen(v => !v)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-white text-xs font-bold active:scale-95 transition-transform"
+                  style={{ backgroundColor: ACCENT }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  追加
+                </button>
+              </div>
+
+              {/* 追加フォーム */}
+              {qFormOpen && (
+                <div className="bg-gray-50 rounded-2xl p-4 mb-4 space-y-3">
+                  <input
+                    type="text"
+                    value={qInput}
+                    onChange={e => setQInput(e.target.value)}
+                    placeholder="質問文を入力..."
+                    className="w-full text-sm bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-pink-300 transition-colors"
+                  />
+                  {/* デザインカラー選択 */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 mr-1">色</span>
+                    {DESIGNS.map(d => (
+                      <button
+                        key={d}
+                        onClick={() => setQDesign(d)}
+                        className="w-7 h-7 rounded-full transition-all active:scale-90"
+                        style={{
+                          backgroundColor: DESIGN_COLORS[d],
+                          border: qDesign === d ? '2.5px solid #374151' : '2.5px solid transparent',
+                          transform: qDesign === d ? 'scale(1.15)' : undefined,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => { setQFormOpen(false); setQInput('') }}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-bold text-gray-500 bg-gray-100 active:scale-95 transition-transform"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      onClick={saveCustomQuestion}
+                      disabled={!qInput.trim()}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white active:scale-95 transition-transform disabled:opacity-30"
+                      style={{ backgroundColor: ACCENT }}
+                    >
+                      保存
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {customQuestions.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-8 text-gray-300">
+                  <span className="text-4xl">💬</span>
+                  <p className="text-xs">まだ質問カードがありません</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {customQuestions.map(q => (
+                    <div key={q.id} className="flex items-center bg-gray-50 rounded-xl px-4 py-3 gap-3">
+                      <div className="w-1 h-7 rounded-full shrink-0" style={{ backgroundColor: DESIGN_COLORS[q.design] ?? DESIGN_COLORS.pink }} />
+                      <span className="flex-1 text-sm font-medium text-gray-700 truncate">{q.question}</span>
+                      <button
+                        onClick={() => removeCustomQuestion(q.id)}
+                        className="text-gray-300 text-lg leading-none active:text-rose-400 transition-colors shrink-0"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -300,18 +483,20 @@ export default function LibraryPage() {
         )}
       </div>
 
-      {/* FAB */}
-      <button
-        onClick={activeTab === 'library' ? () => setPickerOpen(true) : createTemplate}
-        disabled={loading}
-        className="fixed right-5 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform disabled:opacity-60"
-        style={{ bottom: 100, backgroundColor: ACCENT, boxShadow: `0 8px 24px ${ACCENT}55` }}
-      >
-        {loading
-          ? <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-          : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-        }
-      </button>
+      {/* FAB (ライブラリ・つくったのみ表示) */}
+      {(activeTab === 'library' || activeTab === 'created') && (
+        <button
+          onClick={activeTab === 'library' ? () => setPickerOpen(true) : createTemplate}
+          disabled={loading}
+          className="fixed right-5 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform disabled:opacity-60"
+          style={{ bottom: 100, backgroundColor: ACCENT, boxShadow: `0 8px 24px ${ACCENT}55` }}
+        >
+          {loading
+            ? <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+            : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          }
+        </button>
+      )}
 
       {/* ボトムタブバー */}
       <div
@@ -327,8 +512,8 @@ export default function LibraryPage() {
           {TABS.map(tab => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key as typeof activeTab)}
-              className="flex flex-col items-center gap-0.5 px-5 py-1 transition-colors"
+              onClick={() => setActiveTab(tab.key)}
+              className="flex flex-col items-center gap-0.5 px-4 py-1 transition-colors"
               style={{ color: activeTab === tab.key ? ACCENT : '#9ca3af' }}
             >
               {tab.icon(activeTab === tab.key)}
@@ -338,12 +523,28 @@ export default function LibraryPage() {
         </div>
       </div>
 
+      {/* スタンプ選択シート */}
+      <BottomSheet open={emojiSheetOpen} onClose={() => setEmojiSheetOpen(false)} title="スタンプを選ぶ">
+        <div className="grid grid-cols-6 gap-1 py-2">
+          {EMOJI_LIST.map((emoji, i) => (
+            <button
+              key={i}
+              onClick={() => addCustomSticker(emoji)}
+              className="h-12 flex items-center justify-center text-3xl rounded-xl active:scale-90 active:bg-gray-100 transition-all relative"
+            >
+              {emoji}
+              {customStickers.includes(emoji) && (
+                <span className="absolute top-0.5 right-0.5 w-3 h-3 rounded-full bg-pink-400 flex items-center justify-center">
+                  <svg width="6" height="6" viewBox="0 0 10 10" fill="white"><path d="M2 5l2.5 2.5L8 3"/></svg>
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      </BottomSheet>
+
       {/* 雛形ピッカーシート */}
-      <BottomSheet
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        title="雛形を選んでシェア"
-      >
+      <BottomSheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="雛形を選んでシェア">
         {templates.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-8 text-gray-400 text-center">
             <p className="text-sm font-medium">雛形がありません</p>
@@ -357,17 +558,13 @@ export default function LibraryPage() {
                 onClick={() => publishAsBook(p)}
                 className="w-full flex items-center gap-3 bg-gray-50 rounded-2xl p-3 active:scale-[0.98] transition-transform text-left"
               >
-                {/* サムネイル */}
                 <div className="relative rounded-xl overflow-hidden shrink-0 shadow-sm" style={{ width: 36, height: 64 }}>
                   <ProfileThumb background={p.background} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-bold text-gray-800 truncate">{p.title}</p>
                 </div>
-                <span
-                  className="text-xs font-black px-3 py-1.5 rounded-full text-white shrink-0"
-                  style={{ backgroundColor: ACCENT }}
-                >
+                <span className="text-xs font-black px-3 py-1.5 rounded-full text-white shrink-0" style={{ backgroundColor: ACCENT }}>
                   シェア
                 </span>
               </button>
@@ -377,11 +574,7 @@ export default function LibraryPage() {
       </BottomSheet>
 
       {/* シェアURLシート */}
-      <BottomSheet
-        open={!!shareProfile}
-        onClose={() => { setShareProfile(null); setUrlCopied(false) }}
-        title="シェア"
-      >
+      <BottomSheet open={!!shareProfile} onClose={() => { setShareProfile(null); setUrlCopied(false) }} title="シェア">
         {shareProfile && (
           <div className="space-y-4 py-2">
             <p className="text-xs text-gray-500 text-center">このURLを友達に送ってね</p>
@@ -399,16 +592,13 @@ export default function LibraryPage() {
         )}
       </BottomSheet>
 
-      {/* 長押し削除メニュー */}
+      {/* 長押しメニュー */}
       {longPressMenu && (
         <div
           className="fixed inset-0 z-[60] bg-black/50 flex items-end"
           onClick={() => setLongPressMenu(null)}
         >
-          <div
-            className="w-full bg-white rounded-t-3xl pb-safe"
-            onClick={e => e.stopPropagation()}
-          >
+          <div className="w-full bg-white rounded-t-3xl pb-safe" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center pt-3 pb-2">
               <div className="w-10 h-1 rounded-full bg-gray-200" />
             </div>
@@ -422,10 +612,7 @@ export default function LibraryPage() {
                   setTimeout(() => { setMenuCopied(false); setLongPressMenu(null) }, 1200)
                 }}
                 className="w-full py-4 font-bold text-base rounded-2xl active:scale-95 transition-all"
-                style={{
-                  backgroundColor: menuCopied ? '#10b981' : ACCENT,
-                  color: 'white',
-                }}
+                style={{ backgroundColor: menuCopied ? '#10b981' : ACCENT, color: 'white' }}
               >
                 {menuCopied ? '✓ URLをコピーしました' : 'シェア（URLをコピー）'}
               </button>

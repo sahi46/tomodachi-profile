@@ -12,6 +12,10 @@ import { v4 as uuidv4 } from 'uuid'
 
 type SheetType = 'sticker' | 'question' | 'background' | 'template' | 'title' | null
 
+interface CustomQuestion { id: string; question: string; design: string }
+const getCustomStickers  = (): string[]          => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_stickers')  ?? '[]' : '[]')
+const getCustomQuestions = (): CustomQuestion[]  => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_questions') ?? '[]' : '[]')
+
 const EMOJI_LIST = [
   '😊','🌸','⭐','💕','🎀','🌈','🍓','🐱','🌙','💫',
   '🦋','🍀','🎵','💖','🌺','🐰','✨','🎠','🍡','🌻',
@@ -90,9 +94,16 @@ export default function EditPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sheet, setSheet]           = useState<SheetType>(null)
   const [customQ, setCustomQ]       = useState('')
+  const [myStickers,   setMyStickers]   = useState<string[]>([])
+  const [myQuestions,  setMyQuestions]  = useState<CustomQuestion[]>([])
   const [titleInput, setTitleInput] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [saved, setSaved]           = useState(false)
+
+  useEffect(() => {
+    setMyStickers(getCustomStickers())
+    setMyQuestions(getCustomQuestions())
+  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -336,12 +347,30 @@ export default function EditPage() {
       </BottomSheet>
 
       <BottomSheet open={sheet === 'sticker'} onClose={() => setSheet(null)} title="スタンプ">
-        <div className="grid grid-cols-6 gap-1 py-2">
-          {EMOJI_LIST.map((emoji, i) => (
-            <button key={i} onClick={() => addSticker(emoji)} className="h-12 flex items-center justify-center text-3xl rounded-xl active:scale-90 active:bg-gray-100 transition-all">
-              {emoji}
-            </button>
-          ))}
+        <div className="space-y-3 py-2">
+          {myStickers.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-400 font-semibold mb-2">マイスタンプ</p>
+              <div className="grid grid-cols-6 gap-1">
+                {myStickers.map((emoji, i) => (
+                  <button key={i} onClick={() => addSticker(emoji)} className="h-12 flex items-center justify-center text-3xl rounded-xl active:scale-90 active:bg-pink-50 transition-all">
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+              <div className="h-px bg-gray-100 mt-3" />
+            </div>
+          )}
+          <div>
+            {myStickers.length > 0 && <p className="text-xs text-gray-400 font-semibold mb-2">すべて</p>}
+            <div className="grid grid-cols-6 gap-1">
+              {EMOJI_LIST.map((emoji, i) => (
+                <button key={i} onClick={() => addSticker(emoji)} className="h-12 flex items-center justify-center text-3xl rounded-xl active:scale-90 active:bg-gray-100 transition-all">
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </BottomSheet>
 
@@ -370,13 +399,29 @@ export default function EditPage() {
               追加
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {QUESTION_PRESETS.map(({ q, design }) => (
-              <button key={q} onClick={() => addQuestion(q, design)}
-                className="text-left text-sm bg-gray-50 rounded-xl px-4 py-3 font-medium text-gray-700 active:scale-95 active:bg-gray-100 transition-all">
-                {q}
-              </button>
-            ))}
+          {myQuestions.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-400 font-semibold mb-2">保存済み</p>
+              <div className="grid grid-cols-2 gap-2">
+                {myQuestions.map(q => (
+                  <button key={q.id} onClick={() => addQuestion(q.question, q.design)}
+                    className="text-left text-sm bg-pink-50 border border-pink-100 rounded-xl px-4 py-3 font-medium text-gray-700 active:scale-95 transition-all">
+                    {q.question}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div>
+            {myQuestions.length > 0 && <p className="text-xs text-gray-400 font-semibold mb-2">プリセット</p>}
+            <div className="grid grid-cols-2 gap-2">
+              {QUESTION_PRESETS.map(({ q, design }) => (
+                <button key={q} onClick={() => addQuestion(q, design)}
+                  className="text-left text-sm bg-gray-50 rounded-xl px-4 py-3 font-medium text-gray-700 active:scale-95 active:bg-gray-100 transition-all">
+                  {q}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </BottomSheet>
