@@ -10,7 +10,7 @@ import TemplateCard from '@/components/TemplateCard'
 import { TEMPLATES, Template } from '@/lib/templates'
 import { v4 as uuidv4 } from 'uuid'
 
-type SheetType = 'sticker' | 'question' | 'background' | 'template' | null
+type SheetType = 'sticker' | 'question' | 'background' | 'template' | 'title' | null
 
 const EMOJI_LIST = [
   '😊','🌸','⭐','💕','🎀','🌈','🍓','🐱','🌙','💫',
@@ -44,12 +44,12 @@ const GRADIENTS = [
 ]
 const SOLIDS = ['#000000','#1a1a2e','#fff0f5','#f5f3ff','#ecfeff','#f0fdf4','#fffbeb','#e0e7ff']
 
-// 右側縦ツールアイコン（インスタストーリーズ風）
-const SIDE_TOOLS = [
+// 右側縦ツールアイコン
+const SIDE_TOOLS: { key: SheetType; svg: React.ReactNode }[] = [
   {
     key: 'sticker',
     svg: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
         <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-4-4 4 4 0 0 1-4-4"/>
         <path d="M8.5 8.5v.01M16 15.5v.01M12 12v.01"/>
       </svg>
@@ -58,17 +58,16 @@ const SIDE_TOOLS = [
   {
     key: 'template',
     svg: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
         <rect x="2" y="3" width="20" height="14" rx="3"/>
-        <path d="M8 21h8M12 17v4"/>
-        <path d="M6 7h4M6 11h12"/>
+        <path d="M8 21h8M12 17v4M6 7h4M6 11h12"/>
       </svg>
     ),
   },
   {
     key: 'question',
     svg: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
         <rect x="3" y="3" width="18" height="18" rx="4"/>
         <path d="M9 9a3 3 0 0 1 6 0c0 2-3 3-3 3M12 17h.01"/>
       </svg>
@@ -77,26 +76,31 @@ const SIDE_TOOLS = [
   {
     key: 'background',
     svg: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-        <circle cx="13" cy="13" r="8"/>
-        <path d="M5 5a8 8 0 0 1 8 0"/>
-        <path d="M2 12h3M19 12h3M12 2v3M12 19v3"/>
-        <circle cx="13" cy="13" r="3"/>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <circle cx="12" cy="12" r="10"/>
+        <circle cx="12" cy="12" r="4"/>
+        <line x1="12" y1="2" x2="12" y2="8"/>
+        <line x1="12" y1="16" x2="12" y2="22"/>
+        <line x1="2" y1="12" x2="8" y2="12"/>
+        <line x1="16" y1="12" x2="22" y2="12"/>
       </svg>
     ),
   },
 ]
 
+const ACCENT = '#d946ef'
+
 export default function EditPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
 
-  const [profile, setProfile]       = useState<Profile | null>(null)
-  const [elements, setElements]     = useState<CanvasElement[]>([])
+  const [profile, setProfile]     = useState<Profile | null>(null)
+  const [elements, setElements]   = useState<CanvasElement[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [sheet, setSheet]           = useState<SheetType>(null)
-  const [customQ, setCustomQ]       = useState('')
-  const [copied, setCopied]         = useState(false)
+  const [sheet, setSheet]         = useState<SheetType>(null)
+  const [customQ, setCustomQ]     = useState('')
+  const [titleInput, setTitleInput] = useState('')
+  const [copied, setCopied]       = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -104,7 +108,7 @@ export default function EditPage() {
         supabase.from('profiles').select('*').eq('id', id).single(),
         supabase.from('elements').select('*').eq('profile_id', id).order('z_index'),
       ])
-      if (p) setProfile(p)
+      if (p) { setProfile(p); setTitleInput(p.title) }
       if (e) setElements(e)
     }
     load()
@@ -163,6 +167,14 @@ export default function EditPage() {
     await supabase.from('profiles').update({ background: bg }).eq('id', id)
   }
 
+  const saveTitle = async () => {
+    if (!profile || !titleInput.trim()) return
+    const title = titleInput.trim()
+    setProfile(p => p ? { ...p, title } : p)
+    setSheet(null)
+    await supabase.from('profiles').update({ title }).eq('id', id)
+  }
+
   const handleUpdate = useCallback(async (elId: string, pos: PctPosition, transform: { rotation: number; scale: number }) => {
     setElements(prev => prev.map(e => e.id === elId ? { ...e, position: pos, transform } : e))
     await supabase.from('elements').update({ position: pos, transform }).eq('id', elId)
@@ -190,91 +202,140 @@ export default function EditPage() {
     )
   }
 
+  // ボトムバーの高さ（safe area含む）は固定 72px + safe area
+  const BOTTOM_BAR = 72
+
   return (
-    <>
-      {/* ── フルスクリーンキャンバス ── */}
-      <ProfileCanvas
-        background={profile.background}
-        elements={elements}
-        editMode
-        fullScreen
-        selectedId={selectedId}
-        onSelect={id => { setSelectedId(id); if (id === null) setSheet(null) }}
-        onUpdate={handleUpdate}
-      />
+    <div
+      className="fixed inset-0 flex flex-col bg-black"
+      style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
+      onDoubleClick={e => e.preventDefault()}
+    >
+      {/* ── キャンバスエリア（ボトムバー分を除いた領域）── */}
+      <div className="flex-1 min-h-0 relative overflow-hidden">
+        <div className="absolute inset-0">
+          <ProfileCanvas
+            background={profile.background}
+            elements={elements}
+            editMode
+            contained
+            selectedId={selectedId}
+            onSelect={id => { setSelectedId(id); if (id === null) setSheet(null) }}
+            onUpdate={handleUpdate}
+          />
+        </div>
 
-      {/* ── オーバーレイ UI（全部 fixed）── */}
-
-      {/* 左上: 戻る */}
-      <button
-        onClick={() => router.push('/')}
-        style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
-        className="fixed top-safe left-4 z-50 mt-3 w-11 h-11 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white active:scale-90 transition-transform"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-          <path d="M18 6 6 18M6 6l12 12"/>
-        </svg>
-      </button>
-
-      {/* 右側: 縦並びツール（インスタ風）*/}
-      <div
-        className="fixed top-safe right-4 z-50 mt-3 flex flex-col items-center gap-3"
-        style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
-      >
-        {SIDE_TOOLS.map(({ key, svg }) => (
-          <button
-            key={key}
-            onClick={() => { setSelectedId(null); setSheet(s => s === key ? null : key as SheetType) }}
-            className={`w-11 h-11 flex items-center justify-center rounded-full backdrop-blur-md transition-all active:scale-90 ${
-              sheet === key ? 'bg-white text-gray-900 shadow-lg' : 'bg-black/40 text-white'
-            }`}
-          >
-            {svg}
-          </button>
-        ))}
-      </div>
-
-      {/* 選択中: 削除バー（キャンバス下端に浮かせる）*/}
-      <div
-        className={`fixed z-50 left-0 right-0 flex justify-center transition-all duration-200 ${
-          selectedEl ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
-        style={{ bottom: 100, WebkitUserSelect: 'none', userSelect: 'none' }}
-      >
+        {/* 左上: 戻る */}
         <button
-          onClick={deleteSelected}
-          className="flex items-center gap-2 px-5 py-2.5 bg-black/55 backdrop-blur-xl rounded-full text-rose-400 text-sm font-bold active:scale-95"
+          onClick={() => router.push('/')}
+          className="absolute top-safe left-4 z-50 mt-3 w-11 h-11 flex items-center justify-center rounded-full bg-black/35 backdrop-blur-md text-white active:scale-90 transition-transform"
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6l-1 14H6L5 6"/>
-            <path d="M9 6V4h6v2"/>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M18 6 6 18M6 6l12 12"/>
           </svg>
-          削除
         </button>
-      </div>
 
-      {/* 下部: シェアバー（インスタ風、キャンバス外）*/}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-50 pb-safe bg-black/70 backdrop-blur-xl"
-        style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
-      >
-        <div className="flex items-center gap-3 px-4 py-3">
+        {/* 右側: 縦ツールアイコン */}
+        <div className="absolute top-safe right-4 z-50 mt-3 flex flex-col items-center gap-3">
+          {SIDE_TOOLS.map(({ key, svg }) => (
+            <button
+              key={key as string}
+              onClick={() => { setSelectedId(null); setSheet(s => s === key ? null : key) }}
+              className={`w-11 h-11 flex items-center justify-center rounded-full backdrop-blur-md transition-all active:scale-90 ${
+                sheet === key ? 'bg-white text-gray-900 shadow-lg' : 'bg-black/35 text-white'
+              }`}
+            >
+              {svg}
+            </button>
+          ))}
+        </div>
+
+        {/* 削除バー（要素選択時）*/}
+        <div
+          className={`absolute left-0 right-0 z-50 flex justify-center transition-all duration-200 ${
+            selectedEl ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+          style={{ bottom: 16 }}
+        >
           <button
-            onClick={share}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold transition-colors ${
-              copied ? 'bg-emerald-500 text-white' : 'bg-white/15 text-white border border-white/20'
-            }`}
+            onClick={deleteSelected}
+            className="flex items-center gap-2 px-5 py-2.5 bg-black/50 backdrop-blur-xl rounded-full text-rose-400 text-sm font-bold active:scale-95"
           >
-            {copied
-              ? <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg> URLをコピーしました</>
-              : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51L8.59 10.49"/></svg> 友達に送る</>
-            }
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14H6L5 6M9 6V4h6v2"/>
+            </svg>
+            削除
           </button>
         </div>
       </div>
 
+      {/* ── ボトムバー ── */}
+      <div
+        className="shrink-0 bg-white pb-safe flex items-center px-4 gap-3"
+        style={{ height: BOTTOM_BAR }}
+      >
+        {/* 左: サブアクション2つ */}
+        <button
+          onClick={() => setSheet(s => s === 'title' ? null : 'title')}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold active:scale-95 transition-transform"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/>
+          </svg>
+          タイトル
+        </button>
+
+        <button
+          onClick={() => window.open(`/p/${profile.slug}`, '_blank')}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-gray-100 text-gray-600 text-xs font-semibold active:scale-95 transition-transform"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+          プレビュー
+        </button>
+
+        <div className="flex-1" />
+
+        {/* 右: 保存ボタン（メインCTA）*/}
+        <button
+          onClick={share}
+          className="flex items-center gap-2 px-5 py-3 rounded-full text-white text-sm font-black active:scale-95 transition-all"
+          style={{
+            backgroundColor: copied ? '#10b981' : ACCENT,
+            boxShadow: copied ? '0 4px 16px #10b98155' : `0 4px 16px ${ACCENT}55`,
+          }}
+        >
+          {copied
+            ? <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg> コピー済み</>
+            : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> 保存・送る</>
+          }
+        </button>
+      </div>
+
       {/* ── ボトムシート群 ── */}
+
+      <BottomSheet open={sheet === 'title'} onClose={() => setSheet(null)} title="タイトルを変更">
+        <div className="space-y-3 py-2">
+          <input
+            type="text"
+            value={titleInput}
+            onChange={e => setTitleInput(e.target.value)}
+            placeholder="プロフィール帳のタイトル"
+            className="w-full text-sm bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-pink-300 transition-colors"
+          />
+          <button
+            onClick={saveTitle}
+            className="w-full py-3.5 text-white text-sm font-bold rounded-xl active:scale-95 transition-all"
+            style={{ backgroundColor: ACCENT }}
+          >
+            保存
+          </button>
+        </div>
+      </BottomSheet>
 
       <BottomSheet open={sheet === 'sticker'} onClose={() => setSheet(null)} title="スタンプ">
         <div className="grid grid-cols-6 gap-1 py-2">
@@ -356,6 +417,6 @@ export default function EditPage() {
           </div>
         </div>
       </BottomSheet>
-    </>
+    </div>
   )
 }

@@ -1,92 +1,156 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { v4 as uuidv4 } from 'uuid'
+import { Profile, Background } from '@/types'
 
-export default function Home() {
+function ProfileThumb({ background }: { background: Background }) {
+  const style: React.CSSProperties =
+    background.type === 'solid'
+      ? { backgroundColor: background.color }
+      : { background: `linear-gradient(${background.direction}, ${background.from}, ${background.to})` }
+  return <div className="absolute inset-0" style={style} />
+}
+
+const TABS = [
+  {
+    label: 'ライブラリ',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.6} strokeLinecap="round">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+        <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+      </svg>
+    ),
+  },
+  {
+    label: 'もらった',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.6} strokeLinecap="round">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+    ),
+  },
+  {
+    label: 'せってい',
+    icon: (active: boolean) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.2 : 1.6} strokeLinecap="round">
+        <circle cx="12" cy="8" r="4"/>
+        <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+      </svg>
+    ),
+  },
+]
+
+const ACCENT = '#d946ef'
+
+export default function LibraryPage() {
   const router = useRouter()
+  const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState(0)
+
+  useEffect(() => {
+    const load = async () => {
+      const ids: string[] = JSON.parse(localStorage.getItem('tomo_profile_ids') || '[]')
+      if (ids.length === 0) return
+      const { data } = await supabase
+        .from('profiles').select('*').in('id', ids).order('updated_at', { ascending: false })
+      if (data) setProfiles(data)
+    }
+    load()
+  }, [])
 
   const createProfile = async () => {
     setLoading(true)
-    const slug = uuidv4().slice(0, 8)
-    const { data, error } = await supabase
-      .from('profiles')
-      .insert({
-        slug,
-        title: 'わたしのプロフィール',
-        background: { type: 'gradient', from: '#ffb3d1', to: '#c4b5fd', direction: '135deg' },
-      })
-      .select()
-      .single()
+    const slug = Math.random().toString(36).slice(2, 10)
+    const { data } = await supabase.from('profiles').insert({
+      slug,
+      title: 'わたしのプロフィール',
+      background: { type: 'gradient', from: '#ffd6e7', to: '#c9b8ff', direction: '135deg' },
+    }).select().single()
 
-    if (error || !data) {
-      alert('エラーが発生しました')
-      setLoading(false)
-      return
+    if (data) {
+      const ids: string[] = JSON.parse(localStorage.getItem('tomo_profile_ids') || '[]')
+      localStorage.setItem('tomo_profile_ids', JSON.stringify([data.id, ...ids]))
+      router.push(`/edit/${data.id}`)
     }
-    router.push(`/edit/${data.id}`)
+    setLoading(false)
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden bg-white">
-      {/* 背景デコ */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-[-80px] right-[-80px] w-72 h-72 rounded-full bg-pink-100 opacity-60" />
-        <div className="absolute bottom-[-60px] left-[-60px] w-56 h-56 rounded-full bg-purple-100 opacity-60" />
-        <div className="absolute top-1/2 left-[-40px] w-40 h-40 rounded-full bg-yellow-100 opacity-40" />
+    <div className="min-h-screen flex flex-col bg-white" style={{ userSelect: 'none' }}>
+      {/* ヘッダー */}
+      <div className="pt-safe shrink-0" style={{ backgroundColor: ACCENT }}>
+        <div className="px-5 pt-3 pb-4">
+          <h1 className="text-white text-xl font-black tracking-tight">ライブラリ</h1>
+        </div>
       </div>
 
-      <div className="relative z-10 flex flex-col items-center gap-10 px-6 text-center max-w-sm w-full">
-        {/* ロゴ */}
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-pink-400 to-purple-400 flex items-center justify-center shadow-xl shadow-pink-200">
-            <span className="text-4xl">📖</span>
+      {/* グリッド */}
+      <div className="flex-1 overflow-y-auto pb-28 px-4 pt-4">
+        {profiles.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-52 gap-2 text-gray-400">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+              <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+              <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+              <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+              <rect x="14" y="14" width="7" height="7" rx="1.5"/>
+            </svg>
+            <p className="text-sm font-medium">まだプロフィール帳がありません</p>
+            <p className="text-xs">右下の + から作ってみよう</p>
           </div>
-          <div>
-            <h1 className="text-3xl font-black text-gray-800 tracking-tight">ともプロ</h1>
-            <p className="text-sm text-gray-400 mt-1">ともだちプロフィール帳</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            {profiles.map(p => (
+              <button
+                key={p.id}
+                onClick={() => router.push(`/edit/${p.id}`)}
+                className="relative rounded-2xl overflow-hidden shadow-sm active:scale-95 transition-transform bg-gray-100"
+                style={{ aspectRatio: '9/16' }}
+              >
+                <ProfileThumb background={p.background} />
+                <div className="absolute bottom-0 left-0 right-0 p-2"
+                  style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)' }}>
+                  <p className="text-white text-[8px] font-bold truncate">{p.title}</p>
+                </div>
+              </button>
+            ))}
           </div>
-        </div>
-
-        {/* プレビューカード */}
-        <div className="w-full bg-gradient-to-br from-pink-50 to-purple-50 rounded-3xl p-5 border border-pink-100 space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-pink-300 to-purple-300 flex items-center justify-center text-lg">✏️</div>
-            <div className="text-left">
-              <p className="text-sm font-bold text-gray-700">自由にデコれる</p>
-              <p className="text-xs text-gray-400">スタンプ・質問カードを好きな場所に</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-yellow-300 to-orange-300 flex items-center justify-center text-lg">🔗</div>
-            <div className="text-left">
-              <p className="text-sm font-bold text-gray-700">URLで共有</p>
-              <p className="text-xs text-gray-400">リンクを送るだけで友達が見れる</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-300 to-blue-300 flex items-center justify-center text-lg">💌</div>
-            <div className="text-left">
-              <p className="text-sm font-bold text-gray-700">友達に送れる</p>
-              <p className="text-xs text-gray-400">LINE・Instagramでシェアしよう</p>
-            </div>
-          </div>
-        </div>
-
-        {/* CTA */}
-        <button
-          onClick={createProfile}
-          disabled={loading}
-          className="w-full bg-gradient-to-r from-pink-400 to-purple-400 text-white font-black text-lg py-4 rounded-2xl shadow-lg shadow-pink-200 active:scale-95 transition-all duration-150 disabled:opacity-70"
-        >
-          {loading ? '作成中...' : 'プロフィール帳を作る ✨'}
-        </button>
-
-        <p className="text-xs text-gray-300">無料・登録不要</p>
+        )}
       </div>
-    </main>
+
+      {/* FAB */}
+      <button
+        onClick={createProfile}
+        disabled={loading}
+        className="fixed right-5 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform disabled:opacity-60"
+        style={{ bottom: 88, backgroundColor: ACCENT, boxShadow: `0 8px 24px ${ACCENT}55` }}
+      >
+        {loading
+          ? <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+          : <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        }
+      </button>
+
+      {/* ボトムタブ */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 pb-safe border-t" style={{ backgroundColor: '#faf0ff', borderColor: '#f0d6ff' }}>
+        <div className="flex justify-around py-2">
+          {TABS.map((tab, i) => (
+            <button
+              key={tab.label}
+              onClick={() => setActiveTab(i)}
+              className="flex flex-col items-center gap-0.5 px-5 py-1.5 transition-colors"
+              style={{ color: activeTab === i ? ACCENT : '#9ca3af' }}
+            >
+              {tab.icon(activeTab === i)}
+              <span className="text-[10px] font-semibold">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }
