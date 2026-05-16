@@ -23,10 +23,14 @@ type AnimState = { dir: AnimDir; from: number; to: number } | null
 
 const FLIP_MS = 300
 
-// 各アニメーション名に対応する transformOrigin
 const ORIGINS: Record<string, string> = {
-  bookExitFwd: 'left center',   // 左端を軸に右側が奥へ → 左めくり（次へ）
-  bookExitBwd: 'right center',  // 右端を軸に左側が奥へ → 右めくり（前へ）
+  bookExitFwd:  'left center',  // 左端軸で右側が奥へ折れる（次へ）
+  bookEnterBwd: 'left center',  // 左端軸から右側が手前に展開（前へ）
+}
+
+const TIMINGS: Record<string, string> = {
+  bookExitFwd:  'ease-in',   // 加速しながら退場
+  bookEnterBwd: 'ease-out',  // 減速しながら登場
 }
 
 const fmtDate = (s: string) => {
@@ -59,7 +63,6 @@ export default function BookReader({ profile, elements, responses }: Props) {
   const didSwipe       = useRef(false)
   const animating      = useRef(false)
 
-  // 単一フェーズ: from ページが FLIP_MS かけてめくれる間、to ページは背後に表示
   useEffect(() => {
     if (!anim) { animating.current = false; return }
     const t = setTimeout(() => {
@@ -110,14 +113,21 @@ export default function BookReader({ profile, elements, responses }: Props) {
     else if (dx > 50 || vel > 0.25) goTo(page - 1)
   }
 
-  // めくれる from ページは zIndex 高め、背後の to ページは低め
-  const pages: Array<{ index: number; animName?: string; zIndex: number; key: string }> =
-    anim
+  type PageEntry = { index: number; animName?: string; zIndex: number; key: string }
+
+  // 進む: from が退場(top)、to が背後で待機
+  // 戻る: to が登場(top)、from が背後で待機
+  const pages: PageEntry[] = anim
+    ? anim.dir === 'fwd'
       ? [
           { index: anim.to,   zIndex: 0, key: String(anim.to) },
-          { index: anim.from, zIndex: 1, key: String(anim.from), animName: anim.dir === 'fwd' ? 'bookExitFwd' : 'bookExitBwd' },
+          { index: anim.from, zIndex: 1, key: String(anim.from), animName: 'bookExitFwd' },
         ]
-      : [{ index: page, zIndex: 0, key: String(page) }]
+      : [
+          { index: anim.from, zIndex: 0, key: String(anim.from) },
+          { index: anim.to,   zIndex: 1, key: `${anim.to}-enter`, animName: 'bookEnterBwd' },
+        ]
+    : [{ index: page, zIndex: 0, key: String(page) }]
 
   if (responses.length === 0) {
     return (
@@ -167,6 +177,7 @@ export default function BookReader({ profile, elements, responses }: Props) {
         {pages.map(({ index, animName, zIndex, key }) => {
           const answered = applyAnswers(elements, responses[index].answers)
           const origin   = animName ? ORIGINS[animName] : 'center'
+          const timing   = animName ? TIMINGS[animName] : 'linear'
           return (
             <div
               key={key}
@@ -179,46 +190,32 @@ export default function BookReader({ profile, elements, responses }: Props) {
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
                 animation: animName
-                  ? `${animName} ${FLIP_MS}ms ease-in forwards`
+                  ? `${animName} ${FLIP_MS}ms ${timing} forwards`
                   : undefined,
               }}
             >
               {/* 日付テキスト */}
               <p style={{
-                position: 'absolute',
-                top: 6, left: 0, right: 0,
-                textAlign: 'center',
-                color: 'rgba(255,255,255,0.28)',
-                fontSize: 11,
-                margin: 0,
-                pointerEvents: 'none',
-                zIndex: 1,
+                position: 'absolute', top: 6, left: 0, right: 0,
+                textAlign: 'center', color: 'rgba(255,255,255,0.28)',
+                fontSize: 11, margin: 0, pointerEvents: 'none', zIndex: 1,
               }}>
                 {fmtDate(responses[index].created_at)} に届いた回答
               </p>
 
-              {/* キャンバスエリア: 日付分を除いた残り全体 */}
+              {/*
+                キャンバスエリア: absolute bounds で高さを確定。
+                align-items: stretch でアスペクト比ボックスの高さを決め、
+                aspect-ratio: 9/16 で幅を逆算する。
+              */}
               <div style={{
                 position: 'absolute',
-                top: 26,
-                bottom: 8,
-                left: 0,
-                right: 0,
+                top: 26, bottom: 8, left: 0, right: 0,
+                display: 'flex',
+                alignItems: 'stretch',
+                justifyContent: 'center',
               }}>
-                {/*
-                  top: 0 / bottom: 0 で高さを確定 → width: auto + aspectRatio で幅を計算
-                  left: 50% + translateX(-50%) で水平センタリング
-                */}
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  bottom: 0,
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  width: 'auto',
-                  aspectRatio: '9 / 16',
-                  maxWidth: '100%',
-                }}>
+                <div style={{ aspectRatio: '9 / 16', flexShrink: 0, position: 'relative' }}>
                   <ProfileCanvas
                     background={profile.background}
                     elements={answered}
