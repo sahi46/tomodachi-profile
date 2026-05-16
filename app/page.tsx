@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { Profile, Background } from '@/types'
 import BottomSheet from '@/components/BottomSheet'
 import TemplateCard from '@/components/TemplateCard'
-import { Template, CardStyle, CardColors } from '@/lib/templates'
+import { Template, TEMPLATE_THEMES } from '@/lib/templates'
 import { STICKER_PACKS, StickerPack } from '@/lib/stickers'
 import { TEMPLATE_PACKS, TemplatePack } from '@/lib/template-packs'
 
@@ -27,14 +27,6 @@ function ProfileThumb({ background }: { background: Background }) {
 
 const ACCENT = '#d946ef'
 
-const TEMPLATE_THEMES: { color: string; style: CardStyle; colors: CardColors }[] = [
-  { color: '#f472b6', style: 'pill',      colors: { bg: '#fff0f5', title: '#f472b6', label: '#9ca3af', answerBg: '#fce7f3', answerText: '#374151' } },
-  { color: '#a855f7', style: 'pill',      colors: { bg: '#fdf4ff', title: '#a855f7', label: '#9ca3af', answerBg: '#f3e8ff', answerText: '#374151' } },
-  { color: '#f59e0b', style: 'pill',      colors: { bg: '#fffbeb', title: '#f59e0b', label: '#9ca3af', answerBg: '#fef3c7', answerText: '#374151' } },
-  { color: '#10b981', style: 'underline', colors: { bg: '#f0fdf4', title: '#10b981', label: '#6b7280', answerBg: 'transparent', answerText: '#111827', border: '#a7f3d0' } },
-  { color: '#3b82f6', style: 'underline', colors: { bg: '#eff6ff', title: '#3b82f6', label: '#6b7280', answerBg: 'transparent', answerText: '#111827', border: '#bfdbfe' } },
-  { color: '#f97316', style: 'box',       colors: { bg: '#fff7ed', title: '#f97316', label: '#9ca3af', answerBg: '#fff', answerText: '#111827', border: '#fed7aa' } },
-]
 
 const EMOJI_LIST = [
   '😊','🌸','⭐','💕','🎀','🌈','🍓','🐱','🌙','💫',
@@ -130,6 +122,8 @@ export default function LibraryPage() {
   const [downloadedTmplPackIds, setDownloadedTmplPackIds] = useState<string[]>([])
   const [tmplShopOpen,          setTmplShopOpen]          = useState(false)
   const [tmplShopDetail,        setTmplShopDetail]        = useState<TemplatePack | null>(null)
+  const [shopStickerPacks,      setShopStickerPacks]      = useState<StickerPack[]>(STICKER_PACKS)
+  const [shopTemplatePacks,     setShopTemplatePacks]     = useState<TemplatePack[]>(TEMPLATE_PACKS)
 
   const onLongPressStart = (e: React.PointerEvent, profile: Profile, type: 'template' | 'book') => {
     lpFired.current = false
@@ -187,6 +181,13 @@ export default function LibraryPage() {
           .from('responses').select('*').in('profile_id', bookIds).order('created_at', { ascending: false })
         if (rData) setResponses(rData)
       }
+
+      const [{ data: spData }, { data: tpData }] = await Promise.all([
+        supabase.from('sticker_packs').select('*').order('sort_order'),
+        supabase.from('template_card_packs').select('*').order('sort_order'),
+      ])
+      if (spData?.length) setShopStickerPacks(spData as unknown as StickerPack[])
+      if (tpData?.length) setShopTemplatePacks(tpData as unknown as TemplatePack[])
     }
     load()
   }, [])
@@ -649,7 +650,7 @@ export default function LibraryPage() {
         title="テンプレカードショップ"
       >
         <div className="space-y-3 py-2">
-          {TEMPLATE_PACKS.map(pack => {
+          {shopTemplatePacks.map(pack => {
             const downloaded = downloadedTmplPackIds.includes(pack.id)
             return (
               <div
@@ -794,7 +795,7 @@ export default function LibraryPage() {
         title="スタンプショップ"
       >
         <div className="space-y-3 py-2">
-          {STICKER_PACKS.map(pack => {
+          {shopStickerPacks.map(pack => {
             const downloaded = downloadedPackIds.includes(pack.id)
             return (
               <div

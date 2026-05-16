@@ -7,7 +7,7 @@ import { Profile, CanvasElement, Background, PctPosition } from '@/types'
 import ProfileCanvas from '@/components/ProfileCanvas'
 import BottomSheet from '@/components/BottomSheet'
 import TemplateCard from '@/components/TemplateCard'
-import { TEMPLATES, Template } from '@/lib/templates'
+import { TEMPLATES, Template, TEMPLATE_THEMES } from '@/lib/templates'
 import { STICKER_PACKS } from '@/lib/stickers'
 import { TEMPLATE_PACKS } from '@/lib/template-packs'
 import { v4 as uuidv4 } from 'uuid'
@@ -101,6 +101,8 @@ export default function EditPage() {
   const [myTemplates,       setMyTemplates]       = useState<Template[]>([])
   const [downloadedPackIds,     setDownloadedPackIds]     = useState<string[]>([])
   const [downloadedTmplPackIds, setDownloadedTmplPackIds] = useState<string[]>([])
+  const [shopStickerPacks,      setShopStickerPacks]      = useState(STICKER_PACKS)
+  const [shopTemplatePacks,     setShopTemplatePacks]     = useState(TEMPLATE_PACKS)
   const [titleInput, setTitleInput] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [saved, setSaved]           = useState(false)
@@ -110,6 +112,13 @@ export default function EditPage() {
     setMyTemplates(getCustomTemplates())
     setDownloadedPackIds(getDownloadedPackIds())
     setDownloadedTmplPackIds(getDownloadedTmplPackIds())
+    Promise.all([
+      supabase.from('sticker_packs').select('*').order('sort_order'),
+      supabase.from('template_card_packs').select('*').order('sort_order'),
+    ]).then(([{ data: spData }, { data: tpData }]) => {
+      if (spData?.length) setShopStickerPacks(spData as unknown as typeof STICKER_PACKS)
+      if (tpData?.length) setShopTemplatePacks(tpData as unknown as typeof TEMPLATE_PACKS)
+    })
   }, [])
 
   useEffect(() => {
@@ -373,7 +382,7 @@ export default function EditPage() {
             </div>
           )}
           {downloadedPackIds.map(packId => {
-            const pack = STICKER_PACKS.find(p => p.id === packId)
+            const pack = shopStickerPacks.find(p => p.id === packId)
             if (!pack) return null
             return (
               <div key={packId}>
@@ -423,7 +432,7 @@ export default function EditPage() {
             </div>
           )}
           {downloadedTmplPackIds.map(packId => {
-            const pack = TEMPLATE_PACKS.find(p => p.id === packId)
+            const pack = shopTemplatePacks.find(p => p.id === packId)
             if (!pack) return null
             return (
               <div key={packId}>

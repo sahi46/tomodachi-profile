@@ -27,6 +27,15 @@ export interface Template {
   width: number
 }
 
+export const TEMPLATE_THEMES: { color: string; style: CardStyle; colors: CardColors }[] = [
+  { color: '#f472b6', style: 'pill',      colors: { bg: '#fff0f5', title: '#f472b6', label: '#9ca3af', answerBg: '#fce7f3', answerText: '#374151' } },
+  { color: '#a855f7', style: 'pill',      colors: { bg: '#fdf4ff', title: '#a855f7', label: '#9ca3af', answerBg: '#f3e8ff', answerText: '#374151' } },
+  { color: '#f59e0b', style: 'pill',      colors: { bg: '#fffbeb', title: '#f59e0b', label: '#9ca3af', answerBg: '#fef3c7', answerText: '#374151' } },
+  { color: '#10b981', style: 'underline', colors: { bg: '#f0fdf4', title: '#10b981', label: '#6b7280', answerBg: 'transparent', answerText: '#111827', border: '#a7f3d0' } },
+  { color: '#3b82f6', style: 'underline', colors: { bg: '#eff6ff', title: '#3b82f6', label: '#6b7280', answerBg: 'transparent', answerText: '#111827', border: '#bfdbfe' } },
+  { color: '#f97316', style: 'box',       colors: { bg: '#fff7ed', title: '#f97316', label: '#9ca3af', answerBg: '#fff', answerText: '#111827', border: '#fed7aa' } },
+]
+
 export const TEMPLATES: Template[] = [
   // ── ピルスタイル ──
   {
