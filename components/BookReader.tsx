@@ -24,18 +24,13 @@ type AnimState = { dir: AnimDir; from: number; to: number } | null
 const FLIP_MS = 300
 
 const ORIGINS: Record<string, string> = {
-  bookExitFwd:  'left center',  // 左端軸で右側が奥へ折れる（次へ）
-  bookEnterBwd: 'left center',  // 左端軸から右側が手前に展開（前へ）
+  bookExitFwd:  'left center',
+  bookEnterBwd: 'left center',
 }
 
 const TIMINGS: Record<string, string> = {
-  bookExitFwd:  'ease-in',   // 加速しながら退場
-  bookEnterBwd: 'ease-out',  // 減速しながら登場
-}
-
-const fmtDate = (s: string) => {
-  const d = new Date(s)
-  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
+  bookExitFwd:  'ease-in',
+  bookEnterBwd: 'ease-out',
 }
 
 function applyAnswers(elements: CanvasElement[], answers: Record<string, unknown>): CanvasElement[] {
@@ -115,8 +110,6 @@ export default function BookReader({ profile, elements, responses }: Props) {
 
   type PageEntry = { index: number; animName?: string; zIndex: number; key: string }
 
-  // 進む: from が退場(top)、to が背後で待機
-  // 戻る: to が登場(top)、from が背後で待機
   const pages: PageEntry[] = anim
     ? anim.dir === 'fwd'
       ? [
@@ -143,32 +136,11 @@ export default function BookReader({ profile, elements, responses }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-[#0a0a0a] flex flex-col overflow-hidden">
-      {/* ヘッダー */}
-      <div
-        className="pt-safe shrink-0 transition-opacity duration-300"
-        style={{ opacity: uiVisible ? 1 : 0, pointerEvents: uiVisible ? 'auto' : 'none' }}
-      >
-        <div className="flex items-center gap-3 px-4 py-3">
-          <button
-            onClick={() => router.back()}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white active:scale-90 transition-transform shrink-0"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M15 18l-6-6 6-6"/>
-            </svg>
-          </button>
-          <div className="flex-1 min-w-0 text-center">
-            <p className="text-white text-sm font-black truncate">{profile.title}</p>
-            <p className="text-white/35 text-xs">{page + 1} / {responses.length} ページ</p>
-          </div>
-          <div className="w-10 shrink-0" />
-        </div>
-      </div>
+    <div className="fixed inset-0 bg-[#0a0a0a] overflow-hidden">
 
-      {/* ページエリア */}
+      {/* ページエリア: タッチ操作・perspective はここ */}
       <div
-        className="flex-1 relative overflow-hidden"
+        className="absolute inset-0 flex items-center"
         style={{ perspective: '1200px' }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
@@ -185,6 +157,8 @@ export default function BookReader({ profile, elements, responses }: Props) {
                 position: 'absolute',
                 inset: 0,
                 zIndex,
+                display: 'flex',
+                alignItems: 'center',
                 transformOrigin: origin,
                 transformStyle: 'preserve-3d',
                 backfaceVisibility: 'hidden',
@@ -194,45 +168,49 @@ export default function BookReader({ profile, elements, responses }: Props) {
                   : undefined,
               }}
             >
-              {/* 日付テキスト */}
-              <p style={{
-                position: 'absolute', top: 6, left: 0, right: 0,
-                textAlign: 'center', color: 'rgba(255,255,255,0.28)',
-                fontSize: 11, margin: 0, pointerEvents: 'none', zIndex: 1,
-              }}>
-                {fmtDate(responses[index].created_at)} に届いた回答
-              </p>
-
-              {/*
-                キャンバスエリア: absolute bounds で高さを確定。
-                align-items: stretch でアスペクト比ボックスの高さを決め、
-                aspect-ratio: 9/16 で幅を逆算する。
-              */}
-              <div style={{
-                position: 'absolute',
-                top: 26, bottom: 8, left: 0, right: 0,
-                display: 'flex',
-                alignItems: 'stretch',
-                justifyContent: 'center',
-              }}>
-                <div style={{ aspectRatio: '9 / 16', flexShrink: 0, position: 'relative' }}>
-                  <ProfileCanvas
-                    background={profile.background}
-                    elements={answered}
-                    editMode={false}
-                  />
-                </div>
-              </div>
+              {/* 横幅=端末幅、高さ=9:16比率。ProfileCanvas のデフォルトモードがこの挙動 */}
+              <ProfileCanvas
+                background={profile.background}
+                elements={answered}
+                editMode={false}
+              />
             </div>
           )
         })}
       </div>
 
-      {/* ページドット */}
+      {/* ヘッダー: キャンバス上にオーバーレイ */}
+      <div
+        className="absolute top-0 left-0 right-0 pt-safe transition-opacity duration-300"
+        style={{
+          zIndex: 200,
+          opacity: uiVisible ? 1 : 0,
+          pointerEvents: uiVisible ? 'auto' : 'none',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)',
+        }}
+      >
+        <div className="flex items-center gap-3 px-4 py-3">
+          <button
+            onClick={() => router.back()}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/15 text-white active:scale-90 transition-transform shrink-0"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M15 18l-6-6 6-6"/>
+            </svg>
+          </button>
+          <div className="flex-1 min-w-0 text-center">
+            <p className="text-white text-sm font-black truncate drop-shadow">{profile.title}</p>
+            <p className="text-white/60 text-xs drop-shadow">{page + 1} / {responses.length} ページ</p>
+          </div>
+          <div className="w-10 shrink-0" />
+        </div>
+      </div>
+
+      {/* ページドット: 下にオーバーレイ */}
       {responses.length > 1 && (
         <div
-          className="pb-safe shrink-0 flex justify-center items-center gap-1.5 py-3 transition-opacity duration-300"
-          style={{ opacity: uiVisible ? 1 : 0, pointerEvents: uiVisible ? 'auto' : 'none' }}
+          className="absolute bottom-0 left-0 right-0 pb-safe flex justify-center items-center gap-1.5 py-4 transition-opacity duration-300"
+          style={{ zIndex: 200, opacity: uiVisible ? 1 : 0, pointerEvents: uiVisible ? 'auto' : 'none' }}
         >
           {responses.map((_, i) => (
             <button
@@ -242,7 +220,7 @@ export default function BookReader({ profile, elements, responses }: Props) {
                 width: i === page ? 22 : 6,
                 height: 6,
                 borderRadius: 3,
-                backgroundColor: i === page ? 'white' : 'rgba(255,255,255,0.2)',
+                backgroundColor: i === page ? 'white' : 'rgba(255,255,255,0.35)',
                 transition: 'width 200ms ease, background-color 200ms ease',
                 border: 'none',
                 padding: 0,
