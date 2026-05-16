@@ -3,7 +3,7 @@
 import { useRef, useCallback } from 'react'
 import { CanvasElement, Background, PctPosition } from '@/types'
 import TemplateCard from '@/components/TemplateCard'
-import { TEMPLATES } from '@/lib/templates'
+import { TEMPLATES, Template } from '@/lib/templates'
 
 interface Props {
   background: Background
@@ -292,8 +292,8 @@ export default function ProfileCanvas({
                 />
               )}
               {el.type === 'template_card' && (() => {
-                const c = el.content as { templateId: string; answers: Record<string, string> }
-                const tmpl = TEMPLATES.find(t => t.id === c.templateId)
+                const c = el.content as { templateId: string; templateData?: Template; answers: Record<string, string> }
+                const tmpl = TEMPLATES.find(t => t.id === c.templateId) ?? c.templateData
                 if (!tmpl) return null
                 return (
                   <div style={{ outline: answerMode && !isThisEditing ? '2px dashed rgba(168,85,247,0.4)' : 'none', borderRadius: 16 }}>

@@ -12,7 +12,8 @@ import { v4 as uuidv4 } from 'uuid'
 
 type SheetType = 'sticker' | 'question' | 'background' | 'template' | 'title' | null
 
-const getCustomStickers = (): string[] => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_stickers') ?? '[]' : '[]')
+const getCustomStickers  = (): string[]   => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_stickers')  ?? '[]' : '[]')
+const getCustomTemplates = (): Template[] => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_templates') ?? '[]' : '[]')
 
 const EMOJI_LIST = [
   '😊','🌸','⭐','💕','🎀','🌈','🍓','🐱','🌙','💫',
@@ -92,13 +93,15 @@ export default function EditPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sheet, setSheet]           = useState<SheetType>(null)
   const [customQ, setCustomQ]       = useState('')
-  const [myStickers, setMyStickers] = useState<string[]>([])
+  const [myStickers,   setMyStickers]   = useState<string[]>([])
+  const [myTemplates,  setMyTemplates]  = useState<Template[]>([])
   const [titleInput, setTitleInput] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [saved, setSaved]           = useState(false)
 
   useEffect(() => {
     setMyStickers(getCustomStickers())
+    setMyTemplates(getCustomTemplates())
   }, [])
 
   useEffect(() => {
@@ -131,7 +134,11 @@ export default function EditPage() {
   const addTemplateCard = async (tmpl: Template) => {
     const el: CanvasElement = {
       id: uuidv4(), profile_id: id, type: 'template_card',
-      content: { templateId: tmpl.id, answers: {} }, style: {},
+      content: {
+        templateId: tmpl.id,
+        answers: {},
+        ...(tmpl.id.startsWith('custom_') ? { templateData: tmpl } : {}),
+      }, style: {},
       position: { xPct: Math.max(2, 50 - (tmpl.width / 4)), yPct: 15 + Math.random() * 25 },
       transform: { rotation: 0, scale: 1 },
       z_index: elements.length,
@@ -371,17 +378,40 @@ export default function EditPage() {
       </BottomSheet>
 
       <BottomSheet open={sheet === 'template'} onClose={() => setSheet(null)} title="テンプレートカード">
-        <div className="grid grid-cols-2 gap-3 py-2">
-          {TEMPLATES.map(tmpl => (
-            <button key={tmpl.id} onClick={() => addTemplateCard(tmpl)} className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50 active:scale-95 transition-all">
-              <div className="pointer-events-none overflow-hidden w-full" style={{ height: 90 }}>
-                <div style={{ transform: 'scale(0.52)', transformOrigin: 'top left', width: '192%' }}>
-                  <TemplateCard template={tmpl} answers={{}} />
-                </div>
+        <div className="space-y-4 py-2">
+          {myTemplates.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-400 font-semibold mb-2">マイカード</p>
+              <div className="grid grid-cols-2 gap-3">
+                {myTemplates.map(tmpl => (
+                  <button key={tmpl.id} onClick={() => addTemplateCard(tmpl)} className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50 active:scale-95 transition-all">
+                    <div className="pointer-events-none overflow-hidden w-full" style={{ height: 90 }}>
+                      <div style={{ transform: 'scale(0.52)', transformOrigin: 'top left', width: '192%' }}>
+                        <TemplateCard template={tmpl} answers={{}} />
+                      </div>
+                    </div>
+                    <p className="text-xs font-bold text-gray-700 truncate w-full text-center">{tmpl.title}</p>
+                  </button>
+                ))}
               </div>
-              <p className="text-xs font-bold text-gray-700">{tmpl.title}</p>
-            </button>
-          ))}
+              <div className="h-px bg-gray-100 mt-4" />
+            </div>
+          )}
+          <div>
+            {myTemplates.length > 0 && <p className="text-xs text-gray-400 font-semibold mb-2">すべて</p>}
+            <div className="grid grid-cols-2 gap-3">
+              {TEMPLATES.map(tmpl => (
+                <button key={tmpl.id} onClick={() => addTemplateCard(tmpl)} className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50 active:scale-95 transition-all">
+                  <div className="pointer-events-none overflow-hidden w-full" style={{ height: 90 }}>
+                    <div style={{ transform: 'scale(0.52)', transformOrigin: 'top left', width: '192%' }}>
+                      <TemplateCard template={tmpl} answers={{}} />
+                    </div>
+                  </div>
+                  <p className="text-xs font-bold text-gray-700">{tmpl.title}</p>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </BottomSheet>
 

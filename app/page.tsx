@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { Profile, Background } from '@/types'
 import BottomSheet from '@/components/BottomSheet'
+import TemplateCard from '@/components/TemplateCard'
+import { Template, CardStyle, CardColors } from '@/lib/templates'
 
 interface Response {
   id: string
@@ -22,6 +24,15 @@ function ProfileThumb({ background }: { background: Background }) {
 }
 
 const ACCENT = '#d946ef'
+
+const TEMPLATE_THEMES: { color: string; style: CardStyle; colors: CardColors }[] = [
+  { color: '#f472b6', style: 'pill',      colors: { bg: '#fff0f5', title: '#f472b6', label: '#9ca3af', answerBg: '#fce7f3', answerText: '#374151' } },
+  { color: '#a855f7', style: 'pill',      colors: { bg: '#fdf4ff', title: '#a855f7', label: '#9ca3af', answerBg: '#f3e8ff', answerText: '#374151' } },
+  { color: '#f59e0b', style: 'pill',      colors: { bg: '#fffbeb', title: '#f59e0b', label: '#9ca3af', answerBg: '#fef3c7', answerText: '#374151' } },
+  { color: '#10b981', style: 'underline', colors: { bg: '#f0fdf4', title: '#10b981', label: '#6b7280', answerBg: 'transparent', answerText: '#111827', border: '#a7f3d0' } },
+  { color: '#3b82f6', style: 'underline', colors: { bg: '#eff6ff', title: '#3b82f6', label: '#6b7280', answerBg: 'transparent', answerText: '#111827', border: '#bfdbfe' } },
+  { color: '#f97316', style: 'box',       colors: { bg: '#fff7ed', title: '#f97316', label: '#9ca3af', answerBg: '#fff', answerText: '#111827', border: '#fed7aa' } },
+]
 
 const EMOJI_LIST = [
   '😊','🌸','⭐','💕','🎀','🌈','🍓','🐱','🌙','💫',
@@ -78,7 +89,8 @@ const TABS: Array<{ key: TabKey; label: string; icon: (a: boolean) => React.Reac
 
 const getTemplateIds = (): string[] => JSON.parse(localStorage.getItem('tomo_profile_ids') || '[]')
 const getBookIds     = (): string[] => JSON.parse(localStorage.getItem('tomo_book_ids')    || '[]')
-const getCustomStickers = (): string[] => JSON.parse(localStorage.getItem('tomo_custom_stickers') || '[]')
+const getCustomStickers   = (): string[]   => JSON.parse(localStorage.getItem('tomo_custom_stickers')   || '[]')
+const getCustomTemplates  = (): Template[] => JSON.parse(localStorage.getItem('tomo_custom_templates')  || '[]')
 
 export default function LibraryPage() {
   const router = useRouter()
@@ -101,8 +113,13 @@ export default function LibraryPage() {
   const lpStart = useRef({ x: 0, y: 0 })
 
   // パーツ
-  const [customStickers, setCustomStickers] = useState<string[]>([])
-  const [emojiSheetOpen, setEmojiSheetOpen] = useState(false)
+  const [customStickers,  setCustomStickers]  = useState<string[]>([])
+  const [emojiSheetOpen,  setEmojiSheetOpen]  = useState(false)
+  const [customTemplates, setCustomTemplates] = useState<Template[]>([])
+  const [tmplSheetOpen,   setTmplSheetOpen]   = useState(false)
+  const [tmplTitle,       setTmplTitle]       = useState('')
+  const [tmplThemeIdx,    setTmplThemeIdx]    = useState(0)
+  const [tmplFields,      setTmplFields]      = useState<string[]>(['', '', '', ''])
 
   const onLongPressStart = (e: React.PointerEvent, profile: Profile, type: 'template' | 'book') => {
     lpFired.current = false
@@ -139,6 +156,7 @@ export default function LibraryPage() {
 
   useEffect(() => {
     setCustomStickers(getCustomStickers())
+    setCustomTemplates(getCustomTemplates())
 
     const load = async () => {
       const templateIds = getTemplateIds()
@@ -215,6 +233,37 @@ export default function LibraryPage() {
     const next = getCustomStickers().filter(e => e !== emoji)
     localStorage.setItem('tomo_custom_stickers', JSON.stringify(next))
     setCustomStickers(next)
+  }
+
+  const closeTmplSheet = () => {
+    setTmplSheetOpen(false)
+    setTmplTitle('')
+    setTmplThemeIdx(0)
+    setTmplFields(['', '', '', ''])
+  }
+
+  const saveCustomTemplate = () => {
+    const validFields = tmplFields.filter(f => f.trim())
+    if (!tmplTitle.trim() || validFields.length === 0) return
+    const theme = TEMPLATE_THEMES[tmplThemeIdx]
+    const tmpl: Template = {
+      id: `custom_${Date.now()}`,
+      title: tmplTitle.trim(),
+      style: theme.style,
+      colors: theme.colors,
+      width: 220,
+      fields: validFields.map((label, i) => ({ key: `f${i}`, label })),
+    }
+    const next = [tmpl, ...getCustomTemplates()]
+    localStorage.setItem('tomo_custom_templates', JSON.stringify(next))
+    setCustomTemplates(next)
+    closeTmplSheet()
+  }
+
+  const removeCustomTemplate = (id: string) => {
+    const next = getCustomTemplates().filter(t => t.id !== id)
+    localStorage.setItem('tomo_custom_templates', JSON.stringify(next))
+    setCustomTemplates(next)
   }
 
   const tabTitle = { library: 'ライブラリ', created: 'つくった', parts: 'パーツ', settings: 'せってい' }
@@ -355,6 +404,48 @@ export default function LibraryPage() {
               )}
             </div>
 
+            {/* テンプレカードセクション */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-base font-black text-gray-800">テンプレカード</p>
+                <button
+                  onClick={() => setTmplSheetOpen(true)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-white text-xs font-bold active:scale-95 transition-transform"
+                  style={{ backgroundColor: ACCENT }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  作成
+                </button>
+              </div>
+              {customTemplates.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-8 text-gray-300">
+                  <span className="text-4xl">🃏</span>
+                  <p className="text-xs">まだカードがありません</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {customTemplates.map(tmpl => (
+                    <div key={tmpl.id} className="relative">
+                      <div className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50">
+                        <div className="pointer-events-none overflow-hidden w-full" style={{ height: 90 }}>
+                          <div style={{ transform: 'scale(0.52)', transformOrigin: 'top left', width: '192%' }}>
+                            <TemplateCard template={tmpl} answers={{}} />
+                          </div>
+                        </div>
+                        <p className="text-xs font-bold text-gray-700 truncate w-full text-center">{tmpl.title}</p>
+                      </div>
+                      <button
+                        onClick={() => removeCustomTemplate(tmpl.id)}
+                        className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-gray-300 text-gray-600 text-[10px] flex items-center justify-center leading-none active:bg-rose-200 active:text-rose-600 transition-colors"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
           </div>
         )}
 
@@ -405,6 +496,78 @@ export default function LibraryPage() {
           ))}
         </div>
       </div>
+
+      {/* テンプレカード作成シート */}
+      <BottomSheet open={tmplSheetOpen} onClose={closeTmplSheet} title="テンプレカードを作成">
+        <div className="space-y-5 py-2">
+          <div>
+            <p className="text-xs text-gray-400 font-semibold mb-2">タイトル</p>
+            <input
+              type="text" value={tmplTitle} onChange={e => setTmplTitle(e.target.value)}
+              placeholder="カードのタイトルを入力"
+              className="w-full text-sm bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-pink-300 transition-colors"
+            />
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 font-semibold mb-3">テーマ</p>
+            <div className="flex gap-3">
+              {TEMPLATE_THEMES.map((theme, i) => (
+                <button
+                  key={i}
+                  onClick={() => setTmplThemeIdx(i)}
+                  className="w-10 h-10 rounded-full shrink-0 active:scale-90 transition-all"
+                  style={{
+                    backgroundColor: theme.color,
+                    boxShadow: i === tmplThemeIdx ? `0 0 0 3px white, 0 0 0 5px ${theme.color}` : 'none',
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-gray-400 font-semibold">項目</p>
+              {tmplFields.length < 6 && (
+                <button
+                  onClick={() => setTmplFields([...tmplFields, ''])}
+                  className="text-xs font-bold active:opacity-60 transition-opacity"
+                  style={{ color: ACCENT }}
+                >
+                  + 追加
+                </button>
+              )}
+            </div>
+            <div className="space-y-2">
+              {tmplFields.map((f, i) => (
+                <div key={i} className="flex gap-2">
+                  <input
+                    type="text" value={f}
+                    onChange={e => { const next = [...tmplFields]; next[i] = e.target.value; setTmplFields(next) }}
+                    placeholder={`項目 ${i + 1}`}
+                    className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 outline-none focus:border-pink-300 transition-colors"
+                  />
+                  {tmplFields.length > 1 && (
+                    <button
+                      onClick={() => setTmplFields(tmplFields.filter((_, j) => j !== i))}
+                      className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50 text-gray-400 active:bg-rose-50 active:text-rose-400 transition-colors text-base"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={saveCustomTemplate}
+            disabled={!tmplTitle.trim() || tmplFields.filter(f => f.trim()).length === 0}
+            className="w-full py-4 rounded-2xl text-white font-black text-base active:scale-95 transition-all disabled:opacity-30"
+            style={{ backgroundColor: ACCENT }}
+          >
+            作成する
+          </button>
+        </div>
+      </BottomSheet>
 
       {/* スタンプ選択シート */}
       <BottomSheet open={emojiSheetOpen} onClose={() => setEmojiSheetOpen(false)} title="スタンプを選ぶ">
