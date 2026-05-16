@@ -10,7 +10,8 @@ interface Props {
   background: Background
   elements: CanvasElement[]
   editMode?: boolean
-  fullScreen?: boolean          // editor: true → fixed inset-0, viewer: false → 9:16 card
+  fullScreen?: boolean   // legacy fullscreen mode (unused in new editor)
+  contained?: boolean    // fills parent div exactly (editor mode)
   selectedId?: string | null
   onSelect?: (id: string | null) => void
   onUpdate?: (id: string, pos: PctPosition, transform: { rotation: number; scale: number }) => void
@@ -58,7 +59,7 @@ function QuestionCard({ question, answer, design, editMode }: {
 }
 
 export default function ProfileCanvas({
-  background, elements, editMode, fullScreen,
+  background, elements, editMode, fullScreen, contained,
   selectedId, onSelect, onUpdate,
 }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -98,10 +99,10 @@ export default function ProfileCanvas({
     onUpdate?.(selectedEl.id, pxToPct(parseFloat(e.target.style.left || '0'), parseFloat(e.target.style.top || '0')), { ...selectedEl.transform, scale })
   }, [selectedEl, onUpdate, pxToPct])
 
-  // fullScreen: editorで使用 → fixed inset-0
-  // normal:    公開ページで使用 → aspect-ratio 9/16
   const outerStyle: React.CSSProperties = fullScreen
     ? { position: 'fixed', inset: 0 }
+    : contained
+    ? { position: 'relative', width: '100%', height: '100%' }
     : { position: 'relative', width: '100%', aspectRatio: '9/16' }
 
   return (
