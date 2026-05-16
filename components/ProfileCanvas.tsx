@@ -1,140 +1,239 @@
 'use client'
 
 import { useRef, useCallback } from 'react'
-import Moveable from 'react-moveable'
-import { CanvasElement, Background } from '@/types'
-import QuestionCard from './QuestionCard'
+import Moveable, { OnDragEnd, OnRotateEnd, OnScaleEnd } from 'react-moveable'
+import {
+  CanvasElement, Background,
+  GRID_COLS, GRID_ROWS,
+  isGridPosition, isPctPosition,
+} from '@/types'
 
 interface Props {
   background: Background
   elements: CanvasElement[]
-  onElementUpdate: (id: string, position: { x: number; y: number }, transform: { rotation: number; scale: number }) => void
-  onElementSelect: (id: string | null) => void
-  selectedId: string | null
+  editMode?: boolean
+  selectedStickerId?: string | null
+  onStickerSelect?: (id: string | null) => void
+  onStickerUpdate?: (id: string, xPct: number, yPct: number, rotation: number, scale: number) => void
+  onQuestionTap?: (el: CanvasElement) => void
+  onEmptyCellTap?: (col: number, row: number) => void
 }
 
-function getBackgroundStyle(bg: Background): React.CSSProperties {
+function getBgStyle(bg: Background): React.CSSProperties {
   if (bg.type === 'solid') return { backgroundColor: bg.color }
   return { background: `linear-gradient(${bg.direction}, ${bg.from}, ${bg.to})` }
 }
 
-export default function ProfileCanvas({ background, elements, onElementUpdate, onElementSelect, selectedId }: Props) {
-  const canvasRef = useRef<HTMLDivElement>(null)
-  // useRefでMapを管理することで再レンダーを防ぐ
-  const elRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+const DESIGN_COLORS: Record<string, { bg: string; label: string; border: string }> = {
+  pink:   { bg: '#fff0f5', label: '#f472b6', border: '#fbcfe8' },
+  purple: { bg: '#f5f3ff', label: '#a78bfa', border: '#ddd6fe' },
+  mint:   { bg: '#f0fdfa', label: '#2dd4bf', border: '#99f6e4' },
+  yellow: { bg: '#fffbeb', label: '#fbbf24', border: '#fde68a' },
+  blue:   { bg: '#eff6ff', label: '#60a5fa', border: '#bfdbfe' },
+}
 
-  const setRef = useCallback((id: string) => (node: HTMLDivElement | null) => {
-    if (node) {
-      elRefs.current.set(id, node)
-    } else {
-      elRefs.current.delete(id)
-    }
-  }, [])
-
-  const selectedElement = elements.find(e => e.id === selectedId)
-  const selectedTarget = selectedId ? elRefs.current.get(selectedId) ?? null : null
+function QuestionCard({ el, editMode, onTap }: {
+  el: CanvasElement
+  editMode?: boolean
+  onTap?: () => void
+}) {
+  const content = el.content as { question: string; answer: string }
+  const c = DESIGN_COLORS[el.style.design] ?? DESIGN_COLORS.pink
 
   return (
-    <div className="relative flex-shrink-0" style={{ width: 390, height: 690 }}>
-      <div
-        ref={canvasRef}
-        className="w-full h-full overflow-hidden rounded-3xl shadow-2xl relative select-none"
-        style={getBackgroundStyle(background)}
-        onClick={(e) => {
-          if (e.target === canvasRef.current) onElementSelect(null)
+    <div
+      onClick={editMode ? onTap : undefined}
+      className="w-full h-full flex flex-col rounded-xl overflow-hidden"
+      style={{
+        backgroundColor: c.bg,
+        border: `1.5px solid ${c.border}`,
+        cursor: editMode ? 'pointer' : 'default',
+        padding: '6% 8%',
+      }}
+    >
+      <p
+        className="font-bold leading-tight truncate"
+        style={{ fontSize: '0.52rem', color: c.label, marginBottom: '4%' }}
+      >
+        {content.question}
+      </p>
+      <p
+        className="font-semibold leading-tight"
+        style={{
+          fontSize: '0.62rem',
+          color: content.answer ? '#1f2937' : '#d1d5db',
+          display: '-webkit-box',
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
         }}
       >
-        {elements.map((el) => (
-          <div
-            key={el.id}
-            ref={setRef(el.id)}
-            className="absolute cursor-grab active:cursor-grabbing"
-            style={{
-              left: el.position.x,
-              top: el.position.y,
-              transform: `rotate(${el.transform.rotation}deg) scale(${el.transform.scale})`,
-              transformOrigin: 'center center',
-              zIndex: el.z_index,
-              outline: selectedId === el.id ? '2px dashed #60a5fa' : 'none',
-              outlineOffset: '4px',
-              borderRadius: '4px',
-            }}
-            onClick={(e) => {
-              e.stopPropagation()
-              onElementSelect(el.id)
-            }}
-          >
-            {el.type === 'sticker' && (
-              <span style={{ fontSize: 56, lineHeight: 1, display: 'block', userSelect: 'none' }}>
-                {(el.content as { emoji: string }).emoji}
+        {content.answer || (editMode ? 'タップして入力' : '—')}
+      </p>
+    </div>
+  )
+}
+
+function EmptyCell({ editMode, onTap }: { editMode?: boolean; onTap?: () => void }) {
+  if (!editMode) return <div className="w-full h-full rounded-xl" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
+  return (
+    <div
+      onClick={onTap}
+      className="w-full h-full rounded-xl flex items-center justify-center"
+      style={{
+        border: '1.5px dashed rgba(255,255,255,0.4)',
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        cursor: 'pointer',
+      }}
+    >
+      <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '1rem', lineHeight: 1 }}>+</span>
+    </div>
+  )
+}
+
+export default function ProfileCanvas({
+  background, elements, editMode,
+  selectedStickerId, onStickerSelect, onStickerUpdate,
+  onQuestionTap, onEmptyCellTap,
+}: Props) {
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const stickerRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+
+  const setRef = useCallback((id: string) => (node: HTMLDivElement | null) => {
+    if (node) stickerRefs.current.set(id, node)
+    else stickerRefs.current.delete(id)
+  }, [])
+
+  const questions = elements.filter(e => e.type === 'question' && isGridPosition(e.position))
+  const stickers = elements.filter(e => e.type === 'sticker' && isPctPosition(e.position))
+
+  // グリッドマップ構築 "col_row" -> element
+  const qMap = new Map(
+    questions.map(q => {
+      const p = q.position as { col: number; row: number }
+      return [`${p.col}_${p.row}`, q]
+    })
+  )
+
+  const selectedSticker = stickers.find(s => s.id === selectedStickerId)
+  const selectedTarget = selectedStickerId ? stickerRefs.current.get(selectedStickerId) : null
+
+  const handleDragEnd = useCallback((e: OnDragEnd) => {
+    if (!canvasRef.current || !selectedSticker) return
+    const { width, height } = canvasRef.current.getBoundingClientRect()
+    const xPct = (parseFloat(e.target.style.left) / width) * 100
+    const yPct = (parseFloat(e.target.style.top) / height) * 100
+    onStickerUpdate?.(selectedSticker.id, xPct, yPct, selectedSticker.transform.rotation, selectedSticker.transform.scale)
+  }, [selectedSticker, onStickerUpdate])
+
+  const handleRotateEnd = useCallback((e: OnRotateEnd) => {
+    if (!canvasRef.current || !selectedSticker) return
+    const { width, height } = canvasRef.current.getBoundingClientRect()
+    const match = e.target.style.transform.match(/rotate\(([-\d.]+)deg\)/)
+    const rotation = match ? parseFloat(match[1]) : 0
+    const xPct = (parseFloat(e.target.style.left || '0') / width) * 100
+    const yPct = (parseFloat(e.target.style.top || '0') / height) * 100
+    onStickerUpdate?.(selectedSticker.id, xPct, yPct, rotation, selectedSticker.transform.scale)
+  }, [selectedSticker, onStickerUpdate])
+
+  const handleScaleEnd = useCallback((e: OnScaleEnd) => {
+    if (!canvasRef.current || !selectedSticker) return
+    const { width, height } = canvasRef.current.getBoundingClientRect()
+    const match = e.target.style.transform.match(/scale\(([-\d.]+)\)/)
+    const scale = match ? parseFloat(match[1]) : 1
+    const xPct = (parseFloat(e.target.style.left || '0') / width) * 100
+    const yPct = (parseFloat(e.target.style.top || '0') / height) * 100
+    onStickerUpdate?.(selectedSticker.id, xPct, yPct, selectedSticker.transform.rotation, scale)
+  }, [selectedSticker, onStickerUpdate])
+
+  return (
+    // aspectRatio で端末幅に関係なくキャンバス縦横比を保持
+    <div className="relative w-full" style={{ aspectRatio: '390 / 692' }}>
+      <div
+        ref={canvasRef}
+        className="absolute inset-0 rounded-3xl overflow-hidden"
+        style={getBgStyle(background)}
+        onClick={(e) => {
+          if (e.target === canvasRef.current) onStickerSelect?.(null)
+        }}
+      >
+        {/* 質問グリッド層 (4列×7行) */}
+        <div
+          className="absolute inset-0"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
+            gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`,
+            gap: '1%',
+            padding: '1.8%',
+          }}
+        >
+          {Array.from({ length: GRID_ROWS }, (_, row) =>
+            Array.from({ length: GRID_COLS }, (_, col) => {
+              const el = qMap.get(`${col}_${row}`)
+              return (
+                <div key={`${col}_${row}`}>
+                  {el
+                    ? <QuestionCard el={el} editMode={editMode} onTap={() => onQuestionTap?.(el)} />
+                    : <EmptyCell editMode={editMode} onTap={() => onEmptyCellTap?.(col, row)} />
+                  }
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        {/* スタンプ層 (グリッドの上に乗る) */}
+        {stickers.map(s => {
+          const p = s.position as { xPct: number; yPct: number }
+          return (
+            <div
+              key={s.id}
+              ref={setRef(s.id)}
+              className="absolute"
+              style={{
+                left: `${p.xPct}%`,
+                top: `${p.yPct}%`,
+                transform: `rotate(${s.transform.rotation}deg) scale(${s.transform.scale})`,
+                transformOrigin: 'center center',
+                zIndex: 20 + s.z_index,
+                cursor: editMode ? 'grab' : 'default',
+                userSelect: 'none',
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (editMode) onStickerSelect?.(s.id)
+              }}
+            >
+              <span style={{ fontSize: 44, lineHeight: 1, display: 'block' }}>
+                {(s.content as { emoji: string }).emoji}
               </span>
-            )}
-            {el.type === 'question' && (
-              <QuestionCard
-                question={(el.content as { question: string; answer: string }).question}
-                answer={(el.content as { question: string; answer: string }).answer}
-                style={el.style}
-              />
-            )}
-            {el.type === 'text' && (
-              <span
-                className="font-bold text-xl"
-                style={{ color: 'white', textShadow: '0 1px 4px rgba(0,0,0,0.3)', whiteSpace: 'nowrap', userSelect: 'none' }}
-              >
-                {(el.content as { text: string }).text}
-              </span>
-            )}
-          </div>
-        ))}
+            </div>
+          )
+        })}
       </div>
 
-      {selectedTarget && selectedElement && (
+      {/* Moveable: canvasの外に置いてoverflow:hiddenの影響を避ける */}
+      {editMode && selectedTarget && selectedSticker && (
         <Moveable
           target={selectedTarget}
-          draggable
-          rotatable
-          scalable
-          keepRatio
-          throttleDrag={0}
-          throttleRotate={0}
-          throttleScale={0}
+          draggable rotatable scalable keepRatio
+          throttleDrag={0} throttleRotate={0} throttleScale={0}
           onDrag={({ target, left, top }) => {
             target.style.left = `${left}px`
             target.style.top = `${top}px`
           }}
-          onDragEnd={({ target }) => {
-            onElementUpdate(
-              selectedElement.id,
-              { x: parseFloat(target.style.left || '0'), y: parseFloat(target.style.top || '0') },
-              selectedElement.transform
-            )
-          }}
+          onDragEnd={handleDragEnd}
           onRotate={({ target, rotation }) => {
-            target.style.transform = `rotate(${rotation}deg) scale(${selectedElement.transform.scale})`
+            target.style.transform = `rotate(${rotation}deg) scale(${selectedSticker.transform.scale})`
           }}
-          onRotateEnd={({ target }) => {
-            const match = target.style.transform.match(/rotate\(([-\d.]+)deg\)/)
-            const rotation = match ? parseFloat(match[1]) : 0
-            onElementUpdate(
-              selectedElement.id,
-              selectedElement.position,
-              { ...selectedElement.transform, rotation }
-            )
-          }}
+          onRotateEnd={handleRotateEnd}
           onScale={({ target, scale, drag }) => {
-            target.style.transform = `rotate(${selectedElement.transform.rotation}deg) scale(${scale[0]})`
+            target.style.transform = `rotate(${selectedSticker.transform.rotation}deg) scale(${scale[0]})`
             target.style.left = `${drag.left}px`
             target.style.top = `${drag.top}px`
           }}
-          onScaleEnd={({ target }) => {
-            const match = target.style.transform.match(/scale\(([-\d.]+)\)/)
-            const scale = match ? parseFloat(match[1]) : 1
-            onElementUpdate(
-              selectedElement.id,
-              { x: parseFloat(target.style.left || '0'), y: parseFloat(target.style.top || '0') },
-              { ...selectedElement.transform, scale }
-            )
-          }}
+          onScaleEnd={handleScaleEnd}
         />
       )}
     </div>
