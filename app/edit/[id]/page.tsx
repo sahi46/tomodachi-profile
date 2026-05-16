@@ -7,9 +7,11 @@ import { Profile, CanvasElement, Background, PctPosition } from '@/types'
 import ProfileCanvas from '@/components/ProfileCanvas'
 import BottomSheet from '@/components/BottomSheet'
 import TemplateCard from '@/components/TemplateCard'
+import VisualCard from '@/components/VisualCard'
 import { TEMPLATES, Template, TEMPLATE_THEMES } from '@/lib/templates'
 import { STICKER_PACKS } from '@/lib/stickers'
 import { TEMPLATE_PACKS } from '@/lib/template-packs'
+import { VCardTemplate, getVisualTemplates } from '@/lib/visual-card'
 import { v4 as uuidv4 } from 'uuid'
 
 type SheetType = 'sticker' | 'question' | 'background' | 'template' | 'title' | null
@@ -99,6 +101,7 @@ export default function EditPage() {
   const [customQ, setCustomQ]       = useState('')
   const [myStickers,        setMyStickers]        = useState<string[]>([])
   const [myTemplates,       setMyTemplates]       = useState<Template[]>([])
+  const [myVisualTemplates, setMyVisualTemplates] = useState<VCardTemplate[]>([])
   const [downloadedPackIds,     setDownloadedPackIds]     = useState<string[]>([])
   const [downloadedTmplPackIds, setDownloadedTmplPackIds] = useState<string[]>([])
   const [shopStickerPacks,      setShopStickerPacks]      = useState(STICKER_PACKS)
@@ -110,6 +113,7 @@ export default function EditPage() {
   useEffect(() => {
     setMyStickers(getCustomStickers())
     setMyTemplates(getCustomTemplates())
+    setMyVisualTemplates(getVisualTemplates())
     setDownloadedPackIds(getDownloadedPackIds())
     setDownloadedTmplPackIds(getDownloadedTmplPackIds())
     Promise.all([
@@ -157,6 +161,19 @@ export default function EditPage() {
         ...((tmpl.id.startsWith('custom_') || tmpl.id.startsWith('pk_')) ? { templateData: tmpl } : {}),
       }, style: {},
       position: { xPct: Math.max(2, 50 - (tmpl.width / 4)), yPct: 15 + Math.random() * 25 },
+      transform: { rotation: 0, scale: 1 },
+      z_index: elements.length,
+    }
+    setElements(prev => [...prev, el])
+    setSelectedId(el.id); setSheet(null)
+    await supabase.from('elements').upsert(el)
+  }
+
+  const addVisualCard = async (tmpl: VCardTemplate) => {
+    const el: CanvasElement = {
+      id: uuidv4(), profile_id: id, type: 'visual_card',
+      content: { template: tmpl, answers: {} }, style: {},
+      position: { xPct: 5 + Math.random() * 20, yPct: 15 + Math.random() * 25 },
       transform: { rotation: 0, scale: 1 },
       z_index: elements.length,
     }
@@ -413,6 +430,22 @@ export default function EditPage() {
 
       <BottomSheet open={sheet === 'template'} onClose={() => setSheet(null)} title="テンプレートカード">
         <div className="space-y-5 py-2">
+          {myVisualTemplates.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-400 font-semibold mb-2">🎨 ビジュアルカード</p>
+              <div className="grid grid-cols-2 gap-3">
+                {myVisualTemplates.map(tmpl => (
+                  <button key={tmpl.id} onClick={() => addVisualCard(tmpl)} className="flex flex-col items-center gap-2 p-2 rounded-2xl bg-gray-50 active:scale-95 transition-all overflow-hidden">
+                    <div className="pointer-events-none overflow-hidden w-full rounded-xl" style={{ height: 100 }}>
+                      <VisualCard template={tmpl} answers={{}} scale={0.52} />
+                    </div>
+                    <p className="text-xs font-bold text-gray-700 truncate w-full text-center">{tmpl.title}</p>
+                  </button>
+                ))}
+              </div>
+              <div className="h-px bg-gray-100 mt-4" />
+            </div>
+          )}
           {myTemplates.length > 0 && (
             <div>
               <p className="text-xs text-gray-400 font-semibold mb-2">✏️ マイカード</p>

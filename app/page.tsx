@@ -6,9 +6,11 @@ import { supabase } from '@/lib/supabase'
 import { Profile, Background } from '@/types'
 import BottomSheet from '@/components/BottomSheet'
 import TemplateCard from '@/components/TemplateCard'
+import VisualCard from '@/components/VisualCard'
 import { Template, TEMPLATE_THEMES } from '@/lib/templates'
 import { STICKER_PACKS, StickerPack } from '@/lib/stickers'
 import { TEMPLATE_PACKS, TemplatePack } from '@/lib/template-packs'
+import { VCardTemplate, getVisualTemplates, saveVisualTemplates } from '@/lib/visual-card'
 
 interface Response {
   id: string
@@ -124,6 +126,7 @@ export default function LibraryPage() {
   const [tmplShopDetail,        setTmplShopDetail]        = useState<TemplatePack | null>(null)
   const [shopStickerPacks,      setShopStickerPacks]      = useState<StickerPack[]>(STICKER_PACKS)
   const [shopTemplatePacks,     setShopTemplatePacks]     = useState<TemplatePack[]>(TEMPLATE_PACKS)
+  const [visualTemplates,       setVisualTemplates]       = useState<VCardTemplate[]>([])
 
   const onLongPressStart = (e: React.PointerEvent, profile: Profile, type: 'template' | 'book') => {
     lpFired.current = false
@@ -163,6 +166,7 @@ export default function LibraryPage() {
     setCustomTemplates(getCustomTemplates())
     setDownloadedPackIds(getDownloadedPackIds())
     setDownloadedTmplPackIds(getDownloadedTmplPackIds())
+    setVisualTemplates(getVisualTemplates())
 
     const load = async () => {
       const templateIds = getTemplateIds()
@@ -305,6 +309,12 @@ export default function LibraryPage() {
     const next = getCustomTemplates().filter(t => t.id !== id)
     localStorage.setItem('tomo_custom_templates', JSON.stringify(next))
     setCustomTemplates(next)
+  }
+
+  const removeVisualTemplate = (id: string) => {
+    const next = getVisualTemplates().filter(t => t.id !== id)
+    saveVisualTemplates(next)
+    setVisualTemplates(next)
   }
 
   const tabTitle = { library: 'ライブラリ', created: 'つくった', parts: 'パーツ', settings: 'せってい' }
@@ -514,7 +524,7 @@ export default function LibraryPage() {
                     ショップ
                   </button>
                   <button
-                    onClick={() => setTmplSheetOpen(true)}
+                    onClick={() => router.push('/card-editor')}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-full text-white text-xs font-bold active:scale-95 transition-transform"
                     style={{ backgroundColor: ACCENT }}
                   >
@@ -524,7 +534,7 @@ export default function LibraryPage() {
                 </div>
               </div>
 
-              {downloadedTmplPackIds.length === 0 && customTemplates.length === 0 ? (
+              {downloadedTmplPackIds.length === 0 && customTemplates.length === 0 && visualTemplates.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-8 text-gray-300">
                   <span className="text-4xl">🃏</span>
                   <p className="text-xs">ショップからパックを追加しよう</p>
@@ -561,6 +571,34 @@ export default function LibraryPage() {
                       </div>
                     )
                   })}
+
+                  {/* ビジュアルカード（自作） */}
+                  {visualTemplates.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 mb-2">🎨 ビジュアルカード</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {visualTemplates.map(tmpl => (
+                          <div key={tmpl.id} className="relative">
+                            <div
+                              className="flex flex-col items-center gap-2 p-2 rounded-2xl bg-gray-50 cursor-pointer active:scale-95 transition-transform"
+                              onClick={() => router.push(`/card-editor?id=${tmpl.id}`)}
+                            >
+                              <div className="pointer-events-none overflow-hidden w-full rounded-xl" style={{ height: 100 }}>
+                                <VisualCard template={tmpl} answers={{}} scale={0.52} />
+                              </div>
+                              <p className="text-xs font-bold text-gray-700 truncate w-full text-center">{tmpl.title}</p>
+                            </div>
+                            <button
+                              onClick={() => removeVisualTemplate(tmpl.id)}
+                              className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-gray-300 text-gray-600 text-[10px] flex items-center justify-center leading-none active:bg-rose-200 active:text-rose-600 transition-colors"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* マイカード（自作） */}
                   {customTemplates.length > 0 && (

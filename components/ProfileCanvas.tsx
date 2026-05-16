@@ -3,7 +3,9 @@
 import { useRef, useCallback } from 'react'
 import { CanvasElement, Background, PctPosition } from '@/types'
 import TemplateCard from '@/components/TemplateCard'
+import VisualCard from '@/components/VisualCard'
 import { TEMPLATES, Template } from '@/lib/templates'
+import { VCardTemplate } from '@/lib/visual-card'
 
 interface Props {
   background: Background
@@ -291,6 +293,25 @@ export default function ProfileCanvas({
                   onAnswerChange={v => onAnswerChange?.(el.id, v)}
                 />
               )}
+              {el.type === 'visual_card' && (() => {
+                const c = el.content as { template: VCardTemplate; answers: Record<string, string> }
+                if (!c.template) return null
+                return (
+                  <div style={{ outline: answerMode && !isThisEditing ? '2px dashed rgba(99,102,241,0.4)' : 'none', borderRadius: 16 }}>
+                    <VisualCard
+                      template={c.template}
+                      answers={c.answers ?? {}}
+                      scale={0.5}
+                      answerMode={answerMode}
+                      answerEditingId={isThisEditing ? '__all__' : null}
+                      onAnswerChange={(key, val) => {
+                        const prev = c.answers ?? {}
+                        onAnswerChange?.(el.id, { ...prev, [key]: val })
+                      }}
+                    />
+                  </div>
+                )
+              })()}
               {el.type === 'template_card' && (() => {
                 const c = el.content as { templateId: string; templateData?: Template; answers: Record<string, string> }
                 const tmpl = TEMPLATES.find(t => t.id === c.templateId) ?? c.templateData
