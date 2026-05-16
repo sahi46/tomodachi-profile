@@ -8,6 +8,7 @@ import BottomSheet from '@/components/BottomSheet'
 import TemplateCard from '@/components/TemplateCard'
 import { Template, CardStyle, CardColors } from '@/lib/templates'
 import { STICKER_PACKS, StickerPack } from '@/lib/stickers'
+import { TEMPLATE_PACKS, TemplatePack } from '@/lib/template-packs'
 
 interface Response {
   id: string
@@ -92,7 +93,8 @@ const getTemplateIds = (): string[] => JSON.parse(localStorage.getItem('tomo_pro
 const getBookIds     = (): string[] => JSON.parse(localStorage.getItem('tomo_book_ids')    || '[]')
 const getCustomStickers    = (): string[]   => JSON.parse(localStorage.getItem('tomo_custom_stickers')    || '[]')
 const getCustomTemplates   = (): Template[] => JSON.parse(localStorage.getItem('tomo_custom_templates')   || '[]')
-const getDownloadedPackIds = (): string[]   => JSON.parse(localStorage.getItem('tomo_downloaded_packs')  || '[]')
+const getDownloadedPackIds      = (): string[] => JSON.parse(localStorage.getItem('tomo_downloaded_packs')       || '[]')
+const getDownloadedTmplPackIds  = (): string[] => JSON.parse(localStorage.getItem('tomo_downloaded_tmpl_packs') || '[]')
 
 export default function LibraryPage() {
   const router = useRouter()
@@ -122,9 +124,12 @@ export default function LibraryPage() {
   const [tmplTitle,         setTmplTitle]         = useState('')
   const [tmplThemeIdx,      setTmplThemeIdx]      = useState(0)
   const [tmplFields,        setTmplFields]        = useState<string[]>(['', '', '', ''])
-  const [downloadedPackIds, setDownloadedPackIds] = useState<string[]>([])
-  const [shopOpen,          setShopOpen]          = useState(false)
-  const [shopDetail,        setShopDetail]        = useState<StickerPack | null>(null)
+  const [downloadedPackIds,     setDownloadedPackIds]     = useState<string[]>([])
+  const [shopOpen,              setShopOpen]              = useState(false)
+  const [shopDetail,            setShopDetail]            = useState<StickerPack | null>(null)
+  const [downloadedTmplPackIds, setDownloadedTmplPackIds] = useState<string[]>([])
+  const [tmplShopOpen,          setTmplShopOpen]          = useState(false)
+  const [tmplShopDetail,        setTmplShopDetail]        = useState<TemplatePack | null>(null)
 
   const onLongPressStart = (e: React.PointerEvent, profile: Profile, type: 'template' | 'book') => {
     lpFired.current = false
@@ -163,6 +168,7 @@ export default function LibraryPage() {
     setCustomStickers(getCustomStickers())
     setCustomTemplates(getCustomTemplates())
     setDownloadedPackIds(getDownloadedPackIds())
+    setDownloadedTmplPackIds(getDownloadedTmplPackIds())
 
     const load = async () => {
       const templateIds = getTemplateIds()
@@ -253,6 +259,20 @@ export default function LibraryPage() {
     const next = getDownloadedPackIds().filter(id => id !== packId)
     localStorage.setItem('tomo_downloaded_packs', JSON.stringify(next))
     setDownloadedPackIds(next)
+  }
+
+  const downloadTmplPack = (packId: string) => {
+    const ids = getDownloadedTmplPackIds()
+    if (ids.includes(packId)) return
+    const next = [...ids, packId]
+    localStorage.setItem('tomo_downloaded_tmpl_packs', JSON.stringify(next))
+    setDownloadedTmplPackIds(next)
+  }
+
+  const removeTmplPack = (packId: string) => {
+    const next = getDownloadedTmplPackIds().filter(id => id !== packId)
+    localStorage.setItem('tomo_downloaded_tmpl_packs', JSON.stringify(next))
+    setDownloadedTmplPackIds(next)
   }
 
   const closeTmplSheet = () => {
@@ -483,40 +503,90 @@ export default function LibraryPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-base font-black text-gray-800">テンプレカード</p>
-                <button
-                  onClick={() => setTmplSheetOpen(true)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-white text-xs font-bold active:scale-95 transition-transform"
-                  style={{ backgroundColor: ACCENT }}
-                >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                  作成
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTmplShopOpen(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold active:scale-95 transition-transform border"
+                    style={{ borderColor: ACCENT, color: ACCENT }}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                    ショップ
+                  </button>
+                  <button
+                    onClick={() => setTmplSheetOpen(true)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-full text-white text-xs font-bold active:scale-95 transition-transform"
+                    style={{ backgroundColor: ACCENT }}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                    作成
+                  </button>
+                </div>
               </div>
-              {customTemplates.length === 0 ? (
+
+              {downloadedTmplPackIds.length === 0 && customTemplates.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-8 text-gray-300">
                   <span className="text-4xl">🃏</span>
-                  <p className="text-xs">まだカードがありません</p>
+                  <p className="text-xs">ショップからパックを追加しよう</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {customTemplates.map(tmpl => (
-                    <div key={tmpl.id} className="relative">
-                      <div className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50">
-                        <div className="pointer-events-none overflow-hidden w-full" style={{ height: 90 }}>
-                          <div style={{ transform: 'scale(0.52)', transformOrigin: 'top left', width: '192%' }}>
-                            <TemplateCard template={tmpl} answers={{}} />
-                          </div>
+                <div className="space-y-5">
+                  {/* ダウンロード済みパック */}
+                  {downloadedTmplPackIds.map(packId => {
+                    const pack = TEMPLATE_PACKS.find(p => p.id === packId)
+                    if (!pack) return null
+                    return (
+                      <div key={packId}>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-bold text-gray-500">{pack.preview} {pack.name}</p>
+                          <button
+                            onClick={() => removeTmplPack(packId)}
+                            className="text-[10px] text-gray-400 active:text-rose-400 transition-colors"
+                          >
+                            削除
+                          </button>
                         </div>
-                        <p className="text-xs font-bold text-gray-700 truncate w-full text-center">{tmpl.title}</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {pack.templates.map(tmpl => (
+                            <div key={tmpl.id} className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50">
+                              <div className="pointer-events-none overflow-hidden w-full" style={{ height: 90 }}>
+                                <div style={{ transform: 'scale(0.52)', transformOrigin: 'top left', width: '192%' }}>
+                                  <TemplateCard template={tmpl} answers={{}} />
+                                </div>
+                              </div>
+                              <p className="text-xs font-bold text-gray-700 truncate w-full text-center">{tmpl.title}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <button
-                        onClick={() => removeCustomTemplate(tmpl.id)}
-                        className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-gray-300 text-gray-600 text-[10px] flex items-center justify-center leading-none active:bg-rose-200 active:text-rose-600 transition-colors"
-                      >
-                        ×
-                      </button>
+                    )
+                  })}
+
+                  {/* マイカード（自作） */}
+                  {customTemplates.length > 0 && (
+                    <div>
+                      <p className="text-xs font-bold text-gray-500 mb-2">✏️ マイカード</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {customTemplates.map(tmpl => (
+                          <div key={tmpl.id} className="relative">
+                            <div className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50">
+                              <div className="pointer-events-none overflow-hidden w-full" style={{ height: 90 }}>
+                                <div style={{ transform: 'scale(0.52)', transformOrigin: 'top left', width: '192%' }}>
+                                  <TemplateCard template={tmpl} answers={{}} />
+                                </div>
+                              </div>
+                              <p className="text-xs font-bold text-gray-700 truncate w-full text-center">{tmpl.title}</p>
+                            </div>
+                            <button
+                              onClick={() => removeCustomTemplate(tmpl.id)}
+                              className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-gray-300 text-gray-600 text-[10px] flex items-center justify-center leading-none active:bg-rose-200 active:text-rose-600 transition-colors"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
             </div>
@@ -571,6 +641,79 @@ export default function LibraryPage() {
           ))}
         </div>
       </div>
+
+      {/* テンプレカードショップシート */}
+      <BottomSheet
+        open={tmplShopOpen && !tmplShopDetail}
+        onClose={() => setTmplShopOpen(false)}
+        title="テンプレカードショップ"
+      >
+        <div className="space-y-3 py-2">
+          {TEMPLATE_PACKS.map(pack => {
+            const downloaded = downloadedTmplPackIds.includes(pack.id)
+            return (
+              <div
+                key={pack.id}
+                className="flex items-center gap-3 p-3 rounded-2xl bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer"
+                onClick={() => setTmplShopDetail(pack)}
+              >
+                <span className="text-3xl shrink-0">{pack.preview}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-800">{pack.name}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{pack.templates.length}枚のカード</p>
+                </div>
+                <button
+                  onClick={e => { e.stopPropagation(); downloaded ? removeTmplPack(pack.id) : downloadTmplPack(pack.id) }}
+                  className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold active:scale-90 transition-all"
+                  style={downloaded
+                    ? { backgroundColor: '#e5e7eb', color: '#6b7280' }
+                    : { backgroundColor: ACCENT, color: 'white' }
+                  }
+                >
+                  {downloaded ? '追加済み' : '追加'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </BottomSheet>
+
+      {/* テンプレカードパック詳細シート */}
+      <BottomSheet
+        open={!!tmplShopDetail}
+        onClose={() => setTmplShopDetail(null)}
+        title={tmplShopDetail ? `${tmplShopDetail.preview} ${tmplShopDetail.name}` : ''}
+      >
+        {tmplShopDetail && (
+          <div className="py-2">
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              {tmplShopDetail.templates.map(tmpl => (
+                <div key={tmpl.id} className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50">
+                  <div className="pointer-events-none overflow-hidden w-full" style={{ height: 90 }}>
+                    <div style={{ transform: 'scale(0.52)', transformOrigin: 'top left', width: '192%' }}>
+                      <TemplateCard template={tmpl} answers={{}} />
+                    </div>
+                  </div>
+                  <p className="text-xs font-bold text-gray-700 truncate w-full text-center">{tmpl.title}</p>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                const downloaded = downloadedTmplPackIds.includes(tmplShopDetail.id)
+                if (downloaded) removeTmplPack(tmplShopDetail.id)
+                else downloadTmplPack(tmplShopDetail.id)
+              }}
+              className="w-full py-4 rounded-2xl text-white font-black text-base active:scale-95 transition-all"
+              style={{
+                backgroundColor: downloadedTmplPackIds.includes(tmplShopDetail.id) ? '#6b7280' : ACCENT,
+              }}
+            >
+              {downloadedTmplPackIds.includes(tmplShopDetail.id) ? '削除する' : '追加する'}
+            </button>
+          </div>
+        )}
+      </BottomSheet>
 
       {/* テンプレカード作成シート */}
       <BottomSheet open={tmplSheetOpen} onClose={closeTmplSheet} title="テンプレカードを作成">
