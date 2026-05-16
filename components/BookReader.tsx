@@ -18,18 +18,15 @@ interface Props {
   responses: Response[]
 }
 
-type AnimDir  = 'fwd' | 'bwd'
-type AnimStep = 'exit' | 'enter'
-type AnimState = { dir: AnimDir; step: AnimStep; from: number; to: number } | null
+type AnimDir   = 'fwd' | 'bwd'
+type AnimState = { dir: AnimDir; from: number; to: number } | null
 
-const PHASE_MS = 200
+const FLIP_MS = 300
 
-// transformOrigin per animation name
+// 各アニメーション名に対応する transformOrigin
 const ORIGINS: Record<string, string> = {
-  bookExitFwd:  'left center',   // page folds away to the left (pivot = left edge)
-  bookEnterFwd: 'right center',  // new page opens from the right (pivot = right edge)
-  bookExitBwd:  'right center',  // page folds away to the right
-  bookEnterBwd: 'left center',   // new page opens from the left
+  bookExitFwd: 'left center',   // 左端を軸に右側が奥へ → 左めくり（次へ）
+  bookExitBwd: 'right center',  // 右端を軸に左側が奥へ → 右めくり（前へ）
 }
 
 const fmtDate = (s: string) => {
@@ -62,18 +59,14 @@ export default function BookReader({ profile, elements, responses }: Props) {
   const didSwipe       = useRef(false)
   const animating      = useRef(false)
 
+  // 単一フェーズ: from ページが FLIP_MS かけてめくれる間、to ページは背後に表示
   useEffect(() => {
     if (!anim) { animating.current = false; return }
-    if (anim.step === 'exit') {
-      const t = setTimeout(() => {
-        setPage(anim.to)
-        setAnim(prev => prev ? { ...prev, step: 'enter' } : null)
-      }, PHASE_MS)
-      return () => clearTimeout(t)
-    } else {
-      const t = setTimeout(() => setAnim(null), PHASE_MS)
-      return () => clearTimeout(t)
-    }
+    const t = setTimeout(() => {
+      setPage(anim.to)
+      setAnim(null)
+    }, FLIP_MS)
+    return () => clearTimeout(t)
   }, [anim])
 
   const goTo = useCallback((n: number) => {
@@ -81,7 +74,7 @@ export default function BookReader({ profile, elements, responses }: Props) {
     const target = Math.max(0, Math.min(responses.length - 1, n))
     if (target === page) return
     animating.current = true
-    setAnim({ dir: target > page ? 'fwd' : 'bwd', step: 'exit', from: page, to: target })
+    setAnim({ dir: target > page ? 'fwd' : 'bwd', from: page, to: target })
   }, [page, responses.length])
 
   const onTouchStart = (e: React.TouchEvent) => {
@@ -117,19 +110,14 @@ export default function BookReader({ profile, elements, responses }: Props) {
     else if (dx > 50 || vel > 0.25) goTo(page - 1)
   }
 
-  type PageEntry = { index: number; animName?: string; key: string }
-
-  // 常に1枚だけ表示。exit では from ページが退場、enter では to ページが登場。
-  // 中間点（両方が edge-on）で一瞬黒くなるのが hard page の正しい挙動。
-  const pagesToRender = (): PageEntry[] => {
-    if (!anim) return [{ index: page, key: String(page) }]
-    if (anim.step === 'exit') {
-      const exitAnim = anim.dir === 'fwd' ? 'bookExitFwd' : 'bookExitBwd'
-      return [{ index: anim.from, key: String(anim.from), animName: exitAnim }]
-    }
-    const enterAnim = anim.dir === 'fwd' ? 'bookEnterFwd' : 'bookEnterBwd'
-    return [{ index: anim.to, key: `${anim.to}-enter`, animName: enterAnim }]
-  }
+  // めくれる from ページは zIndex 高め、背後の to ページは低め
+  const pages: Array<{ index: number; animName?: string; zIndex: number; key: string }> =
+    anim
+      ? [
+          { index: anim.to,   zIndex: 0, key: String(anim.to) },
+          { index: anim.from, zIndex: 1, key: String(anim.from), animName: anim.dir === 'fwd' ? 'bookExitFwd' : 'bookExitBwd' },
+        ]
+      : [{ index: page, zIndex: 0, key: String(page) }]
 
   if (responses.length === 0) {
     return (
@@ -176,7 +164,7 @@ export default function BookReader({ profile, elements, responses }: Props) {
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
-        {pagesToRender().map(({ index, animName, key }) => {
+        {pages.map(({ index, animName, zIndex, key }) => {
           const answered = applyAnswers(elements, responses[index].answers)
           const origin   = animName ? ORIGINS[animName] : 'center'
           return (
@@ -185,11 +173,14 @@ export default function BookReader({ profile, elements, responses }: Props) {
               style={{
                 position: 'absolute',
                 inset: 0,
+                zIndex,
                 transformOrigin: origin,
                 transformStyle: 'preserve-3d',
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
-                animation: animName ? `${animName} ${PHASE_MS}ms linear forwards` : undefined,
+                animation: animName
+                  ? `${animName} ${FLIP_MS}ms ease-in forwards`
+                  : undefined,
               }}
             >
               {/* 日付テキスト */}
@@ -201,31 +192,34 @@ export default function BookReader({ profile, elements, responses }: Props) {
                 fontSize: 11,
                 margin: 0,
                 pointerEvents: 'none',
+                zIndex: 1,
               }}>
                 {fmtDate(responses[index].created_at)} に届いた回答
               </p>
 
-              {/* キャンバスエリア: 日付テキスト分を除いた残り全体を使う */}
+              {/* キャンバスエリア: 日付分を除いた残り全体 */}
               <div style={{
                 position: 'absolute',
                 top: 26,
-                left: 12,
-                right: 12,
                 bottom: 8,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                left: 0,
+                right: 0,
               }}>
-                {/* height: 100% が確実に解決できるよう親を absolute bounds で定義 */}
+                {/*
+                  top: 0 / bottom: 0 で高さを確定 → width: auto + aspectRatio で幅を計算
+                  left: 50% + translateX(-50%) で水平センタリング
+                */}
                 <div style={{
-                  height: '100%',
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 0,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
                   width: 'auto',
                   aspectRatio: '9 / 16',
                   maxWidth: '100%',
-                  position: 'relative',
                 }}>
                   <ProfileCanvas
-                    contained
                     background={profile.background}
                     elements={answered}
                     editMode={false}
