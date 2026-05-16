@@ -8,12 +8,14 @@ import ProfileCanvas from '@/components/ProfileCanvas'
 import BottomSheet from '@/components/BottomSheet'
 import TemplateCard from '@/components/TemplateCard'
 import { TEMPLATES, Template } from '@/lib/templates'
+import { STICKER_PACKS } from '@/lib/stickers'
 import { v4 as uuidv4 } from 'uuid'
 
 type SheetType = 'sticker' | 'question' | 'background' | 'template' | 'title' | null
 
-const getCustomStickers  = (): string[]   => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_stickers')  ?? '[]' : '[]')
-const getCustomTemplates = (): Template[] => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_templates') ?? '[]' : '[]')
+const getCustomStickers    = (): string[]   => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_stickers')   ?? '[]' : '[]')
+const getCustomTemplates   = (): Template[] => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_templates')  ?? '[]' : '[]')
+const getDownloadedPackIds = (): string[]   => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_downloaded_packs')  ?? '[]' : '[]')
 
 const EMOJI_LIST = [
   '😊','🌸','⭐','💕','🎀','🌈','🍓','🐱','🌙','💫',
@@ -93,8 +95,9 @@ export default function EditPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sheet, setSheet]           = useState<SheetType>(null)
   const [customQ, setCustomQ]       = useState('')
-  const [myStickers,   setMyStickers]   = useState<string[]>([])
-  const [myTemplates,  setMyTemplates]  = useState<Template[]>([])
+  const [myStickers,        setMyStickers]        = useState<string[]>([])
+  const [myTemplates,       setMyTemplates]       = useState<Template[]>([])
+  const [downloadedPackIds, setDownloadedPackIds] = useState<string[]>([])
   const [titleInput, setTitleInput] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [saved, setSaved]           = useState(false)
@@ -102,6 +105,7 @@ export default function EditPage() {
   useEffect(() => {
     setMyStickers(getCustomStickers())
     setMyTemplates(getCustomTemplates())
+    setDownloadedPackIds(getDownloadedPackIds())
   }, [])
 
   useEffect(() => {
@@ -350,7 +354,7 @@ export default function EditPage() {
       </BottomSheet>
 
       <BottomSheet open={sheet === 'sticker'} onClose={() => setSheet(null)} title="スタンプ">
-        <div className="space-y-3 py-2">
+        <div className="space-y-4 py-2">
           {myStickers.length > 0 && (
             <div>
               <p className="text-xs text-gray-400 font-semibold mb-2">マイスタンプ</p>
@@ -364,8 +368,25 @@ export default function EditPage() {
               <div className="h-px bg-gray-100 mt-3" />
             </div>
           )}
+          {downloadedPackIds.map(packId => {
+            const pack = STICKER_PACKS.find(p => p.id === packId)
+            if (!pack) return null
+            return (
+              <div key={packId}>
+                <p className="text-xs text-gray-400 font-semibold mb-2">{pack.name}</p>
+                <div className="grid grid-cols-6 gap-1">
+                  {pack.stickers.map((emoji, i) => (
+                    <button key={i} onClick={() => addSticker(emoji)} className="h-12 flex items-center justify-center text-3xl rounded-xl active:scale-90 active:bg-gray-100 transition-all">
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+                <div className="h-px bg-gray-100 mt-3" />
+              </div>
+            )
+          })}
           <div>
-            {myStickers.length > 0 && <p className="text-xs text-gray-400 font-semibold mb-2">すべて</p>}
+            <p className="text-xs text-gray-400 font-semibold mb-2">すべて</p>
             <div className="grid grid-cols-6 gap-1">
               {EMOJI_LIST.map((emoji, i) => (
                 <button key={i} onClick={() => addSticker(emoji)} className="h-12 flex items-center justify-center text-3xl rounded-xl active:scale-90 active:bg-gray-100 transition-all">

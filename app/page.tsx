@@ -7,6 +7,7 @@ import { Profile, Background } from '@/types'
 import BottomSheet from '@/components/BottomSheet'
 import TemplateCard from '@/components/TemplateCard'
 import { Template, CardStyle, CardColors } from '@/lib/templates'
+import { STICKER_PACKS, StickerPack } from '@/lib/stickers'
 
 interface Response {
   id: string
@@ -89,8 +90,9 @@ const TABS: Array<{ key: TabKey; label: string; icon: (a: boolean) => React.Reac
 
 const getTemplateIds = (): string[] => JSON.parse(localStorage.getItem('tomo_profile_ids') || '[]')
 const getBookIds     = (): string[] => JSON.parse(localStorage.getItem('tomo_book_ids')    || '[]')
-const getCustomStickers   = (): string[]   => JSON.parse(localStorage.getItem('tomo_custom_stickers')   || '[]')
-const getCustomTemplates  = (): Template[] => JSON.parse(localStorage.getItem('tomo_custom_templates')  || '[]')
+const getCustomStickers    = (): string[]   => JSON.parse(localStorage.getItem('tomo_custom_stickers')    || '[]')
+const getCustomTemplates   = (): Template[] => JSON.parse(localStorage.getItem('tomo_custom_templates')   || '[]')
+const getDownloadedPackIds = (): string[]   => JSON.parse(localStorage.getItem('tomo_downloaded_packs')  || '[]')
 
 export default function LibraryPage() {
   const router = useRouter()
@@ -113,13 +115,16 @@ export default function LibraryPage() {
   const lpStart = useRef({ x: 0, y: 0 })
 
   // パーツ
-  const [customStickers,  setCustomStickers]  = useState<string[]>([])
-  const [emojiSheetOpen,  setEmojiSheetOpen]  = useState(false)
-  const [customTemplates, setCustomTemplates] = useState<Template[]>([])
-  const [tmplSheetOpen,   setTmplSheetOpen]   = useState(false)
-  const [tmplTitle,       setTmplTitle]       = useState('')
-  const [tmplThemeIdx,    setTmplThemeIdx]    = useState(0)
-  const [tmplFields,      setTmplFields]      = useState<string[]>(['', '', '', ''])
+  const [customStickers,    setCustomStickers]    = useState<string[]>([])
+  const [emojiSheetOpen,    setEmojiSheetOpen]    = useState(false)
+  const [customTemplates,   setCustomTemplates]   = useState<Template[]>([])
+  const [tmplSheetOpen,     setTmplSheetOpen]     = useState(false)
+  const [tmplTitle,         setTmplTitle]         = useState('')
+  const [tmplThemeIdx,      setTmplThemeIdx]      = useState(0)
+  const [tmplFields,        setTmplFields]        = useState<string[]>(['', '', '', ''])
+  const [downloadedPackIds, setDownloadedPackIds] = useState<string[]>([])
+  const [shopOpen,          setShopOpen]          = useState(false)
+  const [shopDetail,        setShopDetail]        = useState<StickerPack | null>(null)
 
   const onLongPressStart = (e: React.PointerEvent, profile: Profile, type: 'template' | 'book') => {
     lpFired.current = false
@@ -157,6 +162,7 @@ export default function LibraryPage() {
   useEffect(() => {
     setCustomStickers(getCustomStickers())
     setCustomTemplates(getCustomTemplates())
+    setDownloadedPackIds(getDownloadedPackIds())
 
     const load = async () => {
       const templateIds = getTemplateIds()
@@ -233,6 +239,20 @@ export default function LibraryPage() {
     const next = getCustomStickers().filter(e => e !== emoji)
     localStorage.setItem('tomo_custom_stickers', JSON.stringify(next))
     setCustomStickers(next)
+  }
+
+  const downloadPack = (packId: string) => {
+    const ids = getDownloadedPackIds()
+    if (ids.includes(packId)) return
+    const next = [...ids, packId]
+    localStorage.setItem('tomo_downloaded_packs', JSON.stringify(next))
+    setDownloadedPackIds(next)
+  }
+
+  const removePack = (packId: string) => {
+    const next = getDownloadedPackIds().filter(id => id !== packId)
+    localStorage.setItem('tomo_downloaded_packs', JSON.stringify(next))
+    setDownloadedPackIds(next)
   }
 
   const closeTmplSheet = () => {
@@ -372,35 +392,90 @@ export default function LibraryPage() {
               <div className="flex items-center justify-between mb-3">
                 <p className="text-base font-black text-gray-800">スタンプ</p>
                 <button
-                  onClick={() => setEmojiSheetOpen(true)}
+                  onClick={() => setShopOpen(true)}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-full text-white text-xs font-bold active:scale-95 transition-transform"
                   style={{ backgroundColor: ACCENT }}
                 >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                  追加
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+                  ショップ
                 </button>
               </div>
-              {customStickers.length === 0 ? (
+
+              {/* ダウンロード済みパック */}
+              {downloadedPackIds.length === 0 && customStickers.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-8 text-gray-300">
-                  <span className="text-4xl">🌟</span>
-                  <p className="text-xs">まだスタンプがありません</p>
+                  <span className="text-4xl">🛍️</span>
+                  <p className="text-xs">ショップからパックを追加しよう</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-6 gap-2">
-                  {customStickers.map((emoji, i) => (
-                    <div key={i} className="relative">
-                      <div className="h-12 flex items-center justify-center text-2xl rounded-xl bg-gray-50">
-                        {emoji}
+                <div className="space-y-4">
+                  {downloadedPackIds.map(packId => {
+                    const pack = STICKER_PACKS.find(p => p.id === packId)
+                    if (!pack) return null
+                    return (
+                      <div key={packId}>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-bold text-gray-500">{pack.name}</p>
+                          <button
+                            onClick={() => removePack(packId)}
+                            className="text-[10px] text-gray-400 active:text-rose-400 transition-colors"
+                          >
+                            削除
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-6 gap-2">
+                          {pack.stickers.map((emoji, i) => (
+                            <div key={i} className="h-12 flex items-center justify-center text-2xl rounded-xl bg-gray-50">
+                              {emoji}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <button
-                        onClick={() => removeCustomSticker(emoji)}
-                        className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gray-300 text-gray-600 text-[10px] flex items-center justify-center leading-none active:bg-rose-200 active:text-rose-600 transition-colors"
-                      >
-                        ×
-                      </button>
+                    )
+                  })}
+
+                  {/* マイスタンプ（個別追加） */}
+                  {customStickers.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-bold text-gray-500">マイスタンプ</p>
+                        <button
+                          onClick={() => setEmojiSheetOpen(true)}
+                          className="text-[10px] font-bold active:opacity-60 transition-opacity"
+                          style={{ color: ACCENT }}
+                        >
+                          + 追加
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-6 gap-2">
+                        {customStickers.map((emoji, i) => (
+                          <div key={i} className="relative">
+                            <div className="h-12 flex items-center justify-center text-2xl rounded-xl bg-gray-50">
+                              {emoji}
+                            </div>
+                            <button
+                              onClick={() => removeCustomSticker(emoji)}
+                              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gray-300 text-gray-600 text-[10px] flex items-center justify-center leading-none active:bg-rose-200 active:text-rose-600 transition-colors"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
+                  )}
                 </div>
+              )}
+
+              {/* マイスタンプが空でもダウンロード済みある場合の追加ボタン */}
+              {(downloadedPackIds.length > 0 || customStickers.length > 0) && customStickers.length === 0 && (
+                <button
+                  onClick={() => setEmojiSheetOpen(true)}
+                  className="mt-3 text-xs font-bold active:opacity-60 transition-opacity"
+                  style={{ color: ACCENT }}
+                >
+                  + 個別に追加
+                </button>
               )}
             </div>
 
@@ -567,6 +642,78 @@ export default function LibraryPage() {
             作成する
           </button>
         </div>
+      </BottomSheet>
+
+      {/* ショップシート */}
+      <BottomSheet
+        open={shopOpen && !shopDetail}
+        onClose={() => setShopOpen(false)}
+        title="スタンプショップ"
+      >
+        <div className="space-y-3 py-2">
+          {STICKER_PACKS.map(pack => {
+            const downloaded = downloadedPackIds.includes(pack.id)
+            return (
+              <div
+                key={pack.id}
+                className="flex items-center gap-3 p-3 rounded-2xl bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer"
+                onClick={() => setShopDetail(pack)}
+              >
+                <span className="text-3xl shrink-0">{pack.preview}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-800">{pack.name}</p>
+                  <div className="flex gap-1 mt-1">
+                    {pack.stickers.slice(0, 6).map((e, i) => (
+                      <span key={i} className="text-base">{e}</span>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={e => { e.stopPropagation(); downloaded ? removePack(pack.id) : downloadPack(pack.id) }}
+                  className="shrink-0 px-3 py-1.5 rounded-full text-xs font-bold active:scale-90 transition-all"
+                  style={downloaded
+                    ? { backgroundColor: '#e5e7eb', color: '#6b7280' }
+                    : { backgroundColor: ACCENT, color: 'white' }
+                  }
+                >
+                  {downloaded ? '追加済み' : '追加'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </BottomSheet>
+
+      {/* パック詳細シート */}
+      <BottomSheet
+        open={!!shopDetail}
+        onClose={() => setShopDetail(null)}
+        title={shopDetail ? `${shopDetail.name} パック` : ''}
+      >
+        {shopDetail && (
+          <div className="py-2">
+            <div className="grid grid-cols-6 gap-2 mb-5">
+              {shopDetail.stickers.map((emoji, i) => (
+                <div key={i} className="h-12 flex items-center justify-center text-2xl rounded-xl bg-gray-50">
+                  {emoji}
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                const downloaded = downloadedPackIds.includes(shopDetail.id)
+                if (downloaded) removePack(shopDetail.id)
+                else downloadPack(shopDetail.id)
+              }}
+              className="w-full py-4 rounded-2xl text-white font-black text-base active:scale-95 transition-all"
+              style={{
+                backgroundColor: downloadedPackIds.includes(shopDetail.id) ? '#6b7280' : ACCENT,
+              }}
+            >
+              {downloadedPackIds.includes(shopDetail.id) ? '削除する' : '追加する'}
+            </button>
+          </div>
+        )}
       </BottomSheet>
 
       {/* スタンプ選択シート */}
