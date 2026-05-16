@@ -44,12 +44,12 @@ const GRADIENTS = [
 ]
 const SOLIDS = ['#000000','#1a1a2e','#fff0f5','#f5f3ff','#ecfeff','#f0fdf4','#fffbeb','#e0e7ff']
 
-const BOTTOM_TOOLS = [
+// 右側縦ツールアイコン（インスタストーリーズ風）
+const SIDE_TOOLS = [
   {
     key: 'sticker',
-    label: 'スタンプ',
     svg: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-4-4 4 4 0 0 1-4-4"/>
         <path d="M8.5 8.5v.01M16 15.5v.01M12 12v.01"/>
       </svg>
@@ -57,9 +57,8 @@ const BOTTOM_TOOLS = [
   },
   {
     key: 'template',
-    label: 'テンプレ',
     svg: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
         <rect x="2" y="3" width="20" height="14" rx="3"/>
         <path d="M8 21h8M12 17v4"/>
         <path d="M6 7h4M6 11h12"/>
@@ -68,9 +67,8 @@ const BOTTOM_TOOLS = [
   },
   {
     key: 'question',
-    label: '質問',
     svg: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
         <rect x="3" y="3" width="18" height="18" rx="4"/>
         <path d="M9 9a3 3 0 0 1 6 0c0 2-3 3-3 3M12 17h.01"/>
       </svg>
@@ -78,15 +76,12 @@ const BOTTOM_TOOLS = [
   },
   {
     key: 'background',
-    label: '背景',
     svg: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-        <circle cx="12" cy="12" r="10"/>
-        <circle cx="12" cy="12" r="4"/>
-        <line x1="12" y1="2" x2="12" y2="8"/>
-        <line x1="12" y1="16" x2="12" y2="22"/>
-        <line x1="2" y1="12" x2="8" y2="12"/>
-        <line x1="16" y1="12" x2="22" y2="12"/>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <circle cx="13" cy="13" r="8"/>
+        <path d="M5 5a8 8 0 0 1 8 0"/>
+        <path d="M2 12h3M19 12h3M12 2v3M12 19v3"/>
+        <circle cx="13" cy="13" r="3"/>
       </svg>
     ),
   },
@@ -189,90 +184,93 @@ export default function EditPage() {
 
   if (!profile) {
     return (
-      <div className="fixed inset-0 bg-[#111] flex items-center justify-center">
+      <div className="fixed inset-0 bg-black flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-[3px] border-white/10 border-t-white/50 animate-spin" />
       </div>
     )
   }
 
   return (
-    <div
-      className="bg-[#111] min-h-screen"
-      style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
-      onDoubleClick={e => e.preventDefault()}
-    >
-      {/* ── トップバー（fixed）── */}
-      <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pt-safe h-14 bg-[#111]/80 backdrop-blur-md">
-        <button
-          onClick={() => router.push('/')}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white active:scale-90 transition-transform"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M18 6 6 18M6 6l12 12"/>
-          </svg>
-        </button>
+    <>
+      {/* ── フルスクリーンキャンバス ── */}
+      <ProfileCanvas
+        background={profile.background}
+        elements={elements}
+        editMode
+        fullScreen
+        selectedId={selectedId}
+        onSelect={id => { setSelectedId(id); if (id === null) setSheet(null) }}
+        onUpdate={handleUpdate}
+      />
 
-        <p className="text-white/40 text-xs font-semibold tracking-widest uppercase">編集</p>
+      {/* ── オーバーレイ UI（全部 fixed）── */}
 
-        <button
-          onClick={share}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-colors ${
-            copied ? 'bg-emerald-500 text-white' : 'bg-white text-gray-900'
-          }`}
-        >
-          {copied
-            ? <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg> コピー済み</>
-            : <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51L8.59 10.49"/></svg> 共有</>
-          }
-        </button>
-      </div>
+      {/* 左上: 戻る */}
+      <button
+        onClick={() => router.push('/')}
+        style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
+        className="fixed top-safe left-4 z-50 mt-3 w-11 h-11 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white active:scale-90 transition-transform"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
+      </button>
 
-      {/* ── キャンバス（端末幅いっぱい、9:16比率で高さ自動）── */}
-      <div className="pt-14 pb-[88px]">
-        <ProfileCanvas
-          background={profile.background}
-          elements={elements}
-          editMode
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onUpdate={handleUpdate}
-        />
-      </div>
-
-      {/* ── ボトムツールバー（fixed）── */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 pb-safe bg-[#111]/90 backdrop-blur-md border-t border-white/8">
-        {/* 選択中コンテキストバー */}
-        <div
-          className={`flex justify-center pt-2 transition-all duration-200 ${
-            selectedEl ? 'opacity-100 h-9' : 'opacity-0 h-0 overflow-hidden pointer-events-none'
-          }`}
-        >
+      {/* 右側: 縦並びツール（インスタ風）*/}
+      <div
+        className="fixed top-safe right-4 z-50 mt-3 flex flex-col items-center gap-3"
+        style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
+      >
+        {SIDE_TOOLS.map(({ key, svg }) => (
           <button
-            onClick={deleteSelected}
-            className="flex items-center gap-1.5 px-4 py-1 bg-rose-500/15 text-rose-400 text-xs font-bold rounded-full active:scale-95"
+            key={key}
+            onClick={() => { setSelectedId(null); setSheet(s => s === key ? null : key as SheetType) }}
+            className={`w-11 h-11 flex items-center justify-center rounded-full backdrop-blur-md transition-all active:scale-90 ${
+              sheet === key ? 'bg-white text-gray-900 shadow-lg' : 'bg-black/40 text-white'
+            }`}
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6l-1 14H6L5 6"/>
-              <path d="M9 6V4h6v2"/>
-            </svg>
-            削除
+            {svg}
           </button>
-        </div>
+        ))}
+      </div>
 
-        <div className="flex items-center justify-around px-2 py-2">
-          {BOTTOM_TOOLS.map(({ key, label, svg }) => (
-            <button
-              key={key}
-              onClick={() => { setSelectedId(null); setSheet(s => s === key ? null : key as SheetType) }}
-              className={`flex flex-col items-center gap-1 px-4 py-2 rounded-2xl transition-colors ${
-                sheet === key ? 'bg-white text-gray-900' : 'text-white/60'
-              }`}
-            >
-              {svg}
-              <span className="text-[10px] font-semibold">{label}</span>
-            </button>
-          ))}
+      {/* 選択中: 削除バー（キャンバス下端に浮かせる）*/}
+      <div
+        className={`fixed z-50 left-0 right-0 flex justify-center transition-all duration-200 ${
+          selectedEl ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        style={{ bottom: 100, WebkitUserSelect: 'none', userSelect: 'none' }}
+      >
+        <button
+          onClick={deleteSelected}
+          className="flex items-center gap-2 px-5 py-2.5 bg-black/55 backdrop-blur-xl rounded-full text-rose-400 text-sm font-bold active:scale-95"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14H6L5 6"/>
+            <path d="M9 6V4h6v2"/>
+          </svg>
+          削除
+        </button>
+      </div>
+
+      {/* 下部: シェアバー（インスタ風、キャンバス外）*/}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-50 pb-safe bg-black/70 backdrop-blur-xl"
+        style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
+      >
+        <div className="flex items-center gap-3 px-4 py-3">
+          <button
+            onClick={share}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-bold transition-colors ${
+              copied ? 'bg-emerald-500 text-white' : 'bg-white/15 text-white border border-white/20'
+            }`}
+          >
+            {copied
+              ? <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg> URLをコピーしました</>
+              : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51L8.59 10.49"/></svg> 友達に送る</>
+            }
+          </button>
         </div>
       </div>
 
@@ -358,6 +356,6 @@ export default function EditPage() {
           </div>
         </div>
       </BottomSheet>
-    </div>
+    </>
   )
 }
