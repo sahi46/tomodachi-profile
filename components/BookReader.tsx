@@ -205,20 +205,23 @@ export default function BookReader({ profile, elements, responses }: Props) {
               {/* キャンバスエリア: 残り高さを flex-1 で埋め、9:16 を維持して表示 */}
               <div style={{
                 flex: 1,
-                width: '100%',
                 minHeight: 0,
+                width: '100%',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: '0 12px 8px',
               }}>
+                {/* height を seed にして aspect-ratio で幅を計算 */}
                 <div style={{
-                  maxHeight: '100%',
-                  maxWidth: '100%',
+                  height: '100%',
+                  width: 'auto',
                   aspectRatio: '9 / 16',
+                  maxWidth: '100%',
                   position: 'relative',
                 }}>
                   <ProfileCanvas
+                    contained
                     background={profile.background}
                     elements={answered}
                     editMode={false}
