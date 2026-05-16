@@ -117,19 +117,18 @@ export default function BookReader({ profile, elements, responses }: Props) {
     else if (dx > 50 || vel > 0.25) goTo(page - 1)
   }
 
-  type PageEntry = { index: number; animName?: string; zIndex: number; key: string }
+  type PageEntry = { index: number; animName?: string; key: string }
 
+  // 常に1枚だけ表示。exit では from ページが退場、enter では to ページが登場。
+  // 中間点（両方が edge-on）で一瞬黒くなるのが hard page の正しい挙動。
   const pagesToRender = (): PageEntry[] => {
-    if (!anim) return [{ index: page, zIndex: 0, key: String(page) }]
+    if (!anim) return [{ index: page, key: String(page) }]
     if (anim.step === 'exit') {
       const exitAnim = anim.dir === 'fwd' ? 'bookExitFwd' : 'bookExitBwd'
-      return [
-        { index: anim.to,   zIndex: 0, key: String(anim.to) },
-        { index: anim.from, zIndex: 1, key: String(anim.from), animName: exitAnim },
-      ]
+      return [{ index: anim.from, key: String(anim.from), animName: exitAnim }]
     }
     const enterAnim = anim.dir === 'fwd' ? 'bookEnterFwd' : 'bookEnterBwd'
-    return [{ index: anim.to, zIndex: 0, key: `${anim.to}-enter`, animName: enterAnim }]
+    return [{ index: anim.to, key: `${anim.to}-enter`, animName: enterAnim }]
   }
 
   if (responses.length === 0) {
@@ -177,7 +176,7 @@ export default function BookReader({ profile, elements, responses }: Props) {
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
-        {pagesToRender().map(({ index, animName, zIndex, key }) => {
+        {pagesToRender().map(({ index, animName, key }) => {
           const answered = applyAnswers(elements, responses[index].answers)
           const origin   = animName ? ORIGINS[animName] : 'center'
           return (
@@ -186,10 +185,6 @@ export default function BookReader({ profile, elements, responses }: Props) {
               style={{
                 position: 'absolute',
                 inset: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                zIndex,
                 transformOrigin: origin,
                 transformStyle: 'preserve-3d',
                 backfaceVisibility: 'hidden',
@@ -198,21 +193,30 @@ export default function BookReader({ profile, elements, responses }: Props) {
               }}
             >
               {/* 日付テキスト */}
-              <p style={{ color: 'rgba(255,255,255,0.28)', fontSize: 11, margin: '8px 0 6px', flexShrink: 0 }}>
+              <p style={{
+                position: 'absolute',
+                top: 6, left: 0, right: 0,
+                textAlign: 'center',
+                color: 'rgba(255,255,255,0.28)',
+                fontSize: 11,
+                margin: 0,
+                pointerEvents: 'none',
+              }}>
                 {fmtDate(responses[index].created_at)} に届いた回答
               </p>
 
-              {/* キャンバスエリア: 残り高さを flex-1 で埋め、9:16 を維持して表示 */}
+              {/* キャンバスエリア: 日付テキスト分を除いた残り全体を使う */}
               <div style={{
-                flex: 1,
-                minHeight: 0,
-                width: '100%',
+                position: 'absolute',
+                top: 26,
+                left: 12,
+                right: 12,
+                bottom: 8,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '0 12px 8px',
               }}>
-                {/* height を seed にして aspect-ratio で幅を計算 */}
+                {/* height: 100% が確実に解決できるよう親を absolute bounds で定義 */}
                 <div style={{
                   height: '100%',
                   width: 'auto',
