@@ -6,9 +6,11 @@ import { supabase } from '@/lib/supabase'
 import { Profile, CanvasElement, Background, PctPosition } from '@/types'
 import ProfileCanvas from '@/components/ProfileCanvas'
 import BottomSheet from '@/components/BottomSheet'
+import TemplateCard from '@/components/TemplateCard'
+import { TEMPLATES, Template } from '@/lib/templates'
 import { v4 as uuidv4 } from 'uuid'
 
-type SheetType = 'sticker' | 'question' | 'background' | 'answer' | null
+type SheetType = 'sticker' | 'question' | 'background' | 'answer' | 'template' | 'template_answer' | null
 
 const EMOJI_LIST = [
   '😊','🌸','⭐','💕','🎀','🌈','🍓','🐱','🌙','💫',
@@ -54,6 +56,16 @@ const SIDE_TOOLS = [
     ),
   },
   {
+    key: 'template',
+    svg: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <rect x="2" y="3" width="20" height="14" rx="3"/>
+        <path d="M8 21h8M12 17v4"/>
+        <path d="M6 7h4M6 11h12"/>
+      </svg>
+    ),
+  },
+  {
     key: 'question',
     svg: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -85,10 +97,11 @@ export default function EditPage() {
   const [elements, setElements]     = useState<CanvasElement[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sheet, setSheet]           = useState<SheetType>(null)
-  const [editingEl, setEditingEl]   = useState<CanvasElement | null>(null)
-  const [answerText, setAnswerText] = useState('')
-  const [customQ, setCustomQ]       = useState('')
-  const [copied, setCopied]         = useState(false)
+  const [editingEl, setEditingEl]       = useState<CanvasElement | null>(null)
+  const [answerText, setAnswerText]     = useState('')
+  const [customQ, setCustomQ]           = useState('')
+  const [copied, setCopied]             = useState(false)
+  const [templateAnswers, setTemplateAnswers] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const load = async () => {
@@ -116,6 +129,40 @@ export default function EditPage() {
     setSelectedId(el.id)
     setSheet(null)
     await supabase.from('elements').upsert(el)
+  }
+
+  const addTemplateCard = async (tmpl: Template) => {
+    const el: CanvasElement = {
+      id: uuidv4(), profile_id: id, type: 'template_card',
+      content: { templateId: tmpl.id, answers: {} },
+      style: {},
+      position: { xPct: Math.max(4, 50 - (tmpl.width / 4)), yPct: 20 + Math.random() * 30 },
+      transform: { rotation: Math.random() * 6 - 3, scale: 1 },
+      z_index: elements.length,
+    }
+    setElements(prev => [...prev, el])
+    setSelectedId(el.id)
+    setSheet(null)
+    setEditingEl(el)
+    setTemplateAnswers({})
+    setTimeout(() => setSheet('template_answer'), 80)
+    await supabase.from('elements').upsert(el)
+  }
+
+  const openTemplateAnswer = () => {
+    if (!selectedEl || selectedEl.type !== 'template_card') return
+    setEditingEl(selectedEl)
+    setTemplateAnswers((selectedEl.content as { templateId: string; answers: Record<string, string> }).answers ?? {})
+    setSheet('template_answer')
+  }
+
+  const saveTemplateAnswers = async () => {
+    if (!editingEl) return
+    const prev = editingEl.content as { templateId: string; answers: Record<string, string> }
+    const content = { ...prev, answers: templateAnswers }
+    setElements(els => els.map(e => e.id === editingEl.id ? { ...e, content } : e))
+    setSheet(null); setEditingEl(null)
+    await supabase.from('elements').update({ content }).eq('id', editingEl.id)
   }
 
   const addQuestion = async (question: string, design: string) => {
@@ -259,6 +306,15 @@ export default function EditPage() {
               回答を入力
             </button>
           )}
+          {selectedEl?.type === 'template_card' && (
+            <button
+              onClick={openTemplateAnswer}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-gray-900 text-xs font-bold active:scale-95"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+              内容を編集
+            </button>
+          )}
           <div className="w-px h-4 bg-white/20" />
           <button
             onClick={deleteSelected}
@@ -278,6 +334,23 @@ export default function EditPage() {
             <button key={i} onClick={() => addSticker(emoji)}
               className="h-12 flex items-center justify-center text-3xl rounded-xl active:scale-90 active:bg-gray-100 transition-all">
               {emoji}
+            </button>
+          ))}
+        </div>
+      </BottomSheet>
+
+      <BottomSheet open={sheet === 'template'} onClose={() => setSheet(null)} title="テンプレートカード">
+        <div className="grid grid-cols-2 gap-3 py-2">
+          {TEMPLATES.map(tmpl => (
+            <button
+              key={tmpl.id}
+              onClick={() => addTemplateCard(tmpl)}
+              className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50 active:scale-95 transition-all"
+            >
+              <div className="pointer-events-none" style={{ transform: 'scale(0.55)', transformOrigin: 'top center', height: 80, overflow: 'hidden' }}>
+                <TemplateCard template={tmpl} answers={{}} editMode />
+              </div>
+              <p className="text-xs font-bold text-gray-700">{tmpl.title}</p>
             </button>
           ))}
         </div>
@@ -348,6 +421,41 @@ export default function EditPage() {
             保存
           </button>
         </div>
+      </BottomSheet>
+
+      <BottomSheet
+        open={sheet === 'template_answer'}
+        onClose={() => { setSheet(null); setEditingEl(null) }}
+        title="カードを編集"
+      >
+        {(() => {
+          if (!editingEl || editingEl.type !== 'template_card') return null
+          const c = editingEl.content as { templateId: string; answers: Record<string, string> }
+          const tmpl = TEMPLATES.find(t => t.id === c.templateId)
+          if (!tmpl) return null
+          return (
+            <div className="space-y-3 py-2">
+              {tmpl.fields.map(f => (
+                <div key={f.key}>
+                  <p className="text-xs text-gray-500 font-semibold mb-1.5">
+                    {f.prefix}{f.label}{f.suffix}
+                  </p>
+                  <input
+                    type="text"
+                    placeholder={f.placeholder ?? '入力してください'}
+                    value={templateAnswers[f.key] ?? ''}
+                    onChange={e => setTemplateAnswers(prev => ({ ...prev, [f.key]: e.target.value }))}
+                    className="w-full text-sm bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-pink-300 transition-colors"
+                  />
+                </div>
+              ))}
+              <button onClick={saveTemplateAnswers}
+                className="w-full py-3.5 bg-gray-900 text-white text-sm font-bold rounded-xl active:scale-95 transition-all">
+                保存
+              </button>
+            </div>
+          )
+        })()}
       </BottomSheet>
     </>
   )

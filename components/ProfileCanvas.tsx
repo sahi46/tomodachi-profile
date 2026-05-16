@@ -3,6 +3,8 @@
 import { useRef, useCallback } from 'react'
 import Moveable, { OnDragEnd, OnRotateEnd, OnScaleEnd } from 'react-moveable'
 import { CanvasElement, Background, PctPosition } from '@/types'
+import TemplateCard from '@/components/TemplateCard'
+import { TEMPLATES } from '@/lib/templates'
 
 interface Props {
   background: Background
@@ -141,6 +143,12 @@ export default function ProfileCanvas({
                   editMode={editMode}
                 />
               )}
+              {el.type === 'template_card' && (() => {
+                const c = el.content as { templateId: string; answers: Record<string, string> }
+                const tmpl = TEMPLATES.find(t => t.id === c.templateId)
+                if (!tmpl) return null
+                return <TemplateCard template={tmpl} answers={c.answers} editMode={editMode} />
+              })()}
             </div>
           )
         })}
