@@ -4,8 +4,6 @@ import { useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { CanvasElement, Profile } from '@/types'
 import ProfileCanvas from '@/components/ProfileCanvas'
-import BottomSheet from '@/components/BottomSheet'
-import { TEMPLATES } from '@/lib/templates'
 
 interface Props {
   profile: Profile
@@ -15,15 +13,12 @@ interface Props {
 type AnswerMap = Record<string, string | Record<string, string>>
 
 export default function AnswerCanvas({ profile, elements }: Props) {
-  const [answerMap, setAnswerMap]       = useState<AnswerMap>({})
-  const [editingEl, setEditingEl]       = useState<CanvasElement | null>(null)
-  const [singleAnswer, setSingleAnswer] = useState('')
-  const [fieldAnswers, setFieldAnswers] = useState<Record<string, string>>({})
-  const [sheet, setSheet]               = useState<'question' | 'template' | null>(null)
-  const [submitting, setSubmitting]     = useState(false)
-  const [submitted, setSubmitted]       = useState(false)
+  const [answerMap, setAnswerMap]             = useState<AnswerMap>({})
+  const [answerEditingId, setAnswerEditingId] = useState<string | null>(null)
+  const [confirmOpen, setConfirmOpen]         = useState(false)
+  const [submitting, setSubmitting]           = useState(false)
+  const [submitted, setSubmitted]             = useState(false)
 
-  // 現在の回答を反映した要素リストを生成
   const answeredElements: CanvasElement[] = elements.map(el => {
     if (el.type === 'question') {
       return { ...el, content: { ...(el.content as { question: string; answer: string }), answer: (answerMap[el.id] as string) ?? '' } }
@@ -37,31 +32,17 @@ export default function AnswerCanvas({ profile, elements }: Props) {
   const handleTapElement = useCallback((elId: string) => {
     const el = elements.find(e => e.id === elId)
     if (!el || el.type === 'sticker') return
+    setAnswerEditingId(prev => prev === elId ? null : elId)
+  }, [elements])
 
-    setEditingEl(el)
-    if (el.type === 'question') {
-      setSingleAnswer((answerMap[elId] as string) ?? '')
-      setSheet('question')
-    } else if (el.type === 'template_card') {
-      setFieldAnswers((answerMap[elId] as Record<string, string>) ?? {})
-      setSheet('template')
-    }
-  }, [elements, answerMap])
-
-  const saveQuestion = () => {
-    if (!editingEl) return
-    setAnswerMap(prev => ({ ...prev, [editingEl.id]: singleAnswer }))
-    setSheet(null); setEditingEl(null)
-  }
-
-  const saveTemplate = () => {
-    if (!editingEl) return
-    setAnswerMap(prev => ({ ...prev, [editingEl.id]: fieldAnswers }))
-    setSheet(null); setEditingEl(null)
-  }
+  const handleAnswerChange = useCallback((id: string, value: string | Record<string, string>) => {
+    setAnswerMap(prev => ({ ...prev, [id]: value }))
+  }, [])
 
   const submit = async () => {
     setSubmitting(true)
+    setConfirmOpen(false)
+    setAnswerEditingId(null)
     await supabase.from('responses').insert({ profile_id: profile.id, answers: answerMap })
     setSubmitted(true)
     setSubmitting(false)
@@ -77,106 +58,103 @@ export default function AnswerCanvas({ profile, elements }: Props) {
     )
   }
 
-  const editingContent = editingEl?.content
-  const questionLabel = editingEl?.type === 'question'
-    ? (editingContent as { question: string }).question
-    : ''
-  const tmpl = editingEl?.type === 'template_card'
-    ? TEMPLATES.find(t => t.id === (editingContent as { templateId: string }).templateId)
-    : null
-
   return (
-    <>
-      <div className="bg-[#0a0a0a]" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
-        {/* タイトル */}
-        <div className="pt-safe px-4 pt-4 pb-2">
-          <p className="text-white/50 text-sm font-semibold text-center">{profile.title}</p>
-        </div>
+    <div className="min-h-screen bg-[#0a0a0a]" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
+      {/* タイトル */}
+      <div className="pt-safe px-4 pt-3 pb-1">
+        <p className="text-white/50 text-sm font-semibold text-center">{profile.title}</p>
+      </div>
 
-        {/* キャンバス（横幅いっぱい）*/}
+      {/* キャンバス + 送信ボタンオーバーレイ */}
+      <div className="relative">
         <ProfileCanvas
           background={profile.background}
           elements={answeredElements}
           editMode={false}
           onTapElement={handleTapElement}
+          onCanvasTap={() => setAnswerEditingId(null)}
+          answerEditingId={answerEditingId}
+          onAnswerChange={handleAnswerChange}
         />
 
-        {/* 回答ガイド */}
-        <p className="text-center text-white/25 text-xs py-3">
-          カードをタップして回答しよう
-        </p>
-
-        {/* 送るボタン下部スペース確保 */}
-        <div className="h-24" />
-      </div>
-
-      {/* 固定ボトム: 回答を送るボタン */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 pb-safe px-4 py-3 bg-[#0a0a0a]/85 backdrop-blur-xl border-t border-white/8">
-        <button
-          onClick={submit}
-          disabled={submitting}
-          className="w-full py-4 rounded-2xl text-white font-black text-base active:scale-95 transition-all disabled:opacity-50"
-          style={{ background: 'linear-gradient(135deg, #f472b6, #a855f7)' }}
-        >
-          {submitting ? '送信中...' : '📨 回答を送る'}
-        </button>
-      </div>
-
-      {/* 質問カード回答シート */}
-      <BottomSheet
-        open={sheet === 'question'}
-        onClose={() => { setSheet(null); setEditingEl(null) }}
-        title={questionLabel}
-      >
-        <div className="space-y-3 py-2">
-          <textarea
-            autoFocus
-            rows={3}
-            placeholder="回答を入力..."
-            value={singleAnswer}
-            onChange={e => setSingleAnswer(e.target.value)}
-            className="w-full text-sm bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-pink-300 resize-none transition-colors"
-          />
-          <button
-            onClick={saveQuestion}
-            className="w-full py-3.5 bg-gray-900 text-white text-sm font-bold rounded-xl active:scale-95"
-          >
-            保存
-          </button>
-        </div>
-      </BottomSheet>
-
-      {/* テンプレートカード回答シート */}
-      <BottomSheet
-        open={sheet === 'template'}
-        onClose={() => { setSheet(null); setEditingEl(null) }}
-        title={tmpl?.title ?? 'カードに回答'}
-      >
-        {tmpl && (
-          <div className="space-y-3 py-2">
-            {tmpl.fields.map(f => (
-              <div key={f.key}>
-                <p className="text-xs text-gray-500 font-semibold mb-1.5">
-                  {f.prefix}{f.label}{f.suffix}
-                </p>
-                <input
-                  type="text"
-                  placeholder={f.placeholder ?? '入力してください'}
-                  value={fieldAnswers[f.key] ?? ''}
-                  onChange={e => setFieldAnswers(prev => ({ ...prev, [f.key]: e.target.value }))}
-                  className="w-full text-sm bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-pink-300 transition-colors"
-                />
-              </div>
-            ))}
+        {/* 送信 / 完了 ボタン（キャンバス右下オーバーレイ）*/}
+        <div className="absolute bottom-4 right-4 z-10">
+          {answerEditingId ? (
             <button
-              onClick={saveTemplate}
-              className="w-full py-3.5 bg-gray-900 text-white text-sm font-bold rounded-xl active:scale-95"
+              onClick={() => setAnswerEditingId(null)}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-full text-white text-sm font-black active:scale-90 transition-transform shadow-xl"
+              style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', boxShadow: '0 6px 20px rgba(99,102,241,0.5)' }}
             >
-              保存
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+              完了
             </button>
-          </div>
+          ) : (
+            <button
+              onClick={() => setConfirmOpen(true)}
+              disabled={submitting}
+              className="w-13 h-13 flex items-center justify-center rounded-full active:scale-90 transition-transform shadow-xl disabled:opacity-50"
+              style={{
+                width: 52, height: 52,
+                background: 'linear-gradient(135deg, #f472b6, #a855f7)',
+                boxShadow: '0 6px 24px rgba(168,85,247,0.55)',
+              }}
+            >
+              {submitting ? (
+                <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 2L11 13"/>
+                  <path d="M22 2L15 22l-4-9-9-4 20-7z"/>
+                </svg>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* ガイドテキスト（編集中は非表示） */}
+        {!answerEditingId && (
+          <p className="absolute bottom-5 left-0 right-14 text-center text-white/20 text-[10px] pointer-events-none">
+            カードをタップして回答しよう
+          </p>
         )}
-      </BottomSheet>
-    </>
+      </div>
+
+      {/* 確認モーダル */}
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-8"
+          style={{ backgroundColor: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)' }}
+          onClick={() => setConfirmOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 w-full max-w-xs shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="text-center mb-5">
+              <span className="text-4xl">📨</span>
+              <p className="text-gray-900 font-black text-lg mt-3">回答を送りますか？</p>
+              <p className="text-gray-400 text-sm mt-1">送信後は変更できません</p>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={submit}
+                className="w-full py-4 rounded-2xl text-white font-black text-base active:scale-95 transition-transform"
+                style={{ background: 'linear-gradient(135deg, #f472b6, #a855f7)' }}
+              >
+                送る
+              </button>
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="w-full py-3 rounded-2xl text-gray-500 font-bold text-sm bg-gray-100 active:scale-95 transition-transform"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

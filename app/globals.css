@@ -6,9 +6,36 @@
 
 * {
   -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 body {
   font-family: var(--font-noto), 'Hiragino Kaku Gothic ProN', sans-serif;
   overscroll-behavior: none;
+}
+
+/* Book page turn animations (hard pages) */
+@keyframes bookExitFwd {
+  from { transform: rotateY(0deg); }
+  50%  { transform: rotateY(-90deg); box-shadow: inset -12px 0 30px rgba(0,0,0,0.25); }
+  to   { transform: rotateY(-90deg); }
+}
+@keyframes bookEnterFwd {
+  from { transform: rotateY(90deg); }
+  to   { transform: rotateY(0deg); }
+}
+@keyframes bookExitBwd {
+  from { transform: rotateY(0deg); }
+  to   { transform: rotateY(90deg); }
+}
+@keyframes bookEnterBwd {
+  from { transform: rotateY(-90deg); }
+  to   { transform: rotateY(0deg); }
 }
