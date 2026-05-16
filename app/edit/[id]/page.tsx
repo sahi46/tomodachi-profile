@@ -197,12 +197,12 @@ export default function EditPage() {
 
   return (
     <div
-      className="fixed inset-0 bg-[#111] flex flex-col"
+      className="bg-[#111] min-h-screen"
       style={{ WebkitUserSelect: 'none', userSelect: 'none' }}
       onDoubleClick={e => e.preventDefault()}
     >
-      {/* ── トップバー ── */}
-      <div className="shrink-0 flex items-center justify-between px-4 pt-safe pb-2 h-14">
+      {/* ── トップバー（fixed）── */}
+      <div className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pt-safe h-14 bg-[#111]/80 backdrop-blur-md">
         <button
           onClick={() => router.push('/')}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white active:scale-90 transition-transform"
@@ -227,37 +227,31 @@ export default function EditPage() {
         </button>
       </div>
 
-      {/* ── キャンバスエリア ── */}
-      <div className="flex-1 min-h-0 flex items-center justify-center px-4 py-2 overflow-hidden">
-        {/* 9:16比率を維持してコンテナ内に収める */}
-        <div
-          className="h-full rounded-3xl overflow-hidden shadow-2xl"
-          style={{ aspectRatio: '9/16', maxWidth: '100%' }}
-        >
-          <ProfileCanvas
-            background={profile.background}
-            elements={elements}
-            editMode
-            contained
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onUpdate={handleUpdate}
-          />
-        </div>
+      {/* ── キャンバス（端末幅いっぱい、9:16比率で高さ自動）── */}
+      <div className="pt-14 pb-[88px]">
+        <ProfileCanvas
+          background={profile.background}
+          elements={elements}
+          editMode
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+          onUpdate={handleUpdate}
+        />
       </div>
 
-      {/* 選択中コンテキストバー */}
-      <div
-        className={`shrink-0 flex justify-center pb-2 transition-all duration-200 ${
-          selectedEl ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-      >
-        <div className="flex items-center gap-1 bg-black/60 backdrop-blur-xl rounded-2xl px-2 py-2">
+      {/* ── ボトムツールバー（fixed）── */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 pb-safe bg-[#111]/90 backdrop-blur-md border-t border-white/8">
+        {/* 選択中コンテキストバー */}
+        <div
+          className={`flex justify-center pt-2 transition-all duration-200 ${
+            selectedEl ? 'opacity-100 h-9' : 'opacity-0 h-0 overflow-hidden pointer-events-none'
+          }`}
+        >
           <button
             onClick={deleteSelected}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-rose-400 text-xs font-bold active:scale-95 rounded-xl active:bg-white/10"
+            className="flex items-center gap-1.5 px-4 py-1 bg-rose-500/15 text-rose-400 text-xs font-bold rounded-full active:scale-95"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <polyline points="3 6 5 6 21 6"/>
               <path d="M19 6l-1 14H6L5 6"/>
               <path d="M9 6V4h6v2"/>
@@ -265,11 +259,8 @@ export default function EditPage() {
             削除
           </button>
         </div>
-      </div>
 
-      {/* ── ボトムツールバー ── */}
-      <div className="shrink-0 pb-safe">
-        <div className="flex items-center justify-around px-6 py-3 border-t border-white/8">
+        <div className="flex items-center justify-around px-2 py-2">
           {BOTTOM_TOOLS.map(({ key, label, svg }) => (
             <button
               key={key}
