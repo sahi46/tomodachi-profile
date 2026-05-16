@@ -1,22 +1,7 @@
-export const GRID_COLS = 4
-export const GRID_ROWS = 7
-
-export type Background =
-  | { type: 'solid'; color: string }
-  | { type: 'gradient'; from: string; to: string; direction: string }
-
-export type ElementType = 'sticker' | 'question'
-
-// 質問: グリッドの何列目・何行目か
-export interface GridPosition {
-  col: number
-  row: number
-}
-
-// スタンプ: キャンバス幅・高さに対する割合 (0-100)
+// キャンバス内の全要素は % 座標で管理（端末幅が変わっても比率は同じ）
 export interface PctPosition {
-  xPct: number
-  yPct: number
+  xPct: number  // 0-100 (キャンバス幅に対する%)
+  yPct: number  // 0-100 (キャンバス高さに対する%)
 }
 
 export interface ElementTransform {
@@ -24,16 +9,22 @@ export interface ElementTransform {
   scale: number
 }
 
+export type ElementType = 'sticker' | 'question'
+
 export interface CanvasElement {
   id: string
   profile_id: string
   type: ElementType
   content: { emoji: string } | { question: string; answer: string }
   style: Record<string, string>
-  position: GridPosition | PctPosition
+  position: PctPosition
   transform: ElementTransform
   z_index: number
 }
+
+export type Background =
+  | { type: 'solid'; color: string }
+  | { type: 'gradient'; from: string; to: string; direction: string }
 
 export interface Profile {
   id: string
@@ -43,10 +34,3 @@ export interface Profile {
   created_at: string
   updated_at: string
 }
-
-// type guards
-export const isGridPosition = (p: GridPosition | PctPosition): p is GridPosition =>
-  'col' in p && 'row' in p
-
-export const isPctPosition = (p: GridPosition | PctPosition): p is PctPosition =>
-  'xPct' in p && 'yPct' in p
