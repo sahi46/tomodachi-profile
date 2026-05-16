@@ -8,6 +8,7 @@ interface Props {
   background: Background
   elements: CanvasElement[]
   editMode?: boolean
+  fullScreen?: boolean          // editor: true → fixed inset-0, viewer: false → 9:16 card
   selectedId?: string | null
   onSelect?: (id: string | null) => void
   onUpdate?: (id: string, pos: PctPosition, transform: { rotation: number; scale: number }) => void
@@ -18,40 +19,34 @@ function getBgStyle(bg: Background): React.CSSProperties {
   return { background: `linear-gradient(${bg.direction}, ${bg.from}, ${bg.to})` }
 }
 
-const CARD_DESIGNS: Record<string, { border: string; label: string; bg: string }> = {
-  pink:   { border: '#f9a8d4', label: '#ec4899', bg: 'rgba(255,255,255,0.93)' },
-  purple: { border: '#c4b5fd', label: '#8b5cf6', bg: 'rgba(255,255,255,0.93)' },
-  mint:   { border: '#6ee7b7', label: '#10b981', bg: 'rgba(255,255,255,0.93)' },
-  yellow: { border: '#fcd34d', label: '#f59e0b', bg: 'rgba(255,255,255,0.93)' },
-  blue:   { border: '#93c5fd', label: '#3b82f6', bg: 'rgba(255,255,255,0.93)' },
+const CARD_DESIGNS: Record<string, { border: string; label: string }> = {
+  pink:   { border: '#f9a8d4', label: '#ec4899' },
+  purple: { border: '#c4b5fd', label: '#8b5cf6' },
+  mint:   { border: '#6ee7b7', label: '#10b981' },
+  yellow: { border: '#fcd34d', label: '#f59e0b' },
+  blue:   { border: '#93c5fd', label: '#3b82f6' },
 }
 
-function QuestionCard({
-  question, answer, design, editMode,
-}: {
+function QuestionCard({ question, answer, design, editMode }: {
   question: string; answer: string; design: string; editMode?: boolean
 }) {
   const c = CARD_DESIGNS[design] ?? CARD_DESIGNS.pink
   return (
-    <div
-      style={{
-        width: 148,
-        backgroundColor: c.bg,
-        borderRadius: 14,
-        borderLeft: `4px solid ${c.border}`,
-        padding: '10px 12px',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.10)',
-        pointerEvents: 'none',
-      }}
-    >
-      <p style={{ fontSize: 9, fontWeight: 700, color: c.label, marginBottom: 5, letterSpacing: '0.03em' }}>
+    <div style={{
+      width: 150,
+      backgroundColor: 'rgba(255,255,255,0.93)',
+      borderRadius: 14,
+      borderLeft: `4px solid ${c.border}`,
+      padding: '10px 12px',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+      pointerEvents: 'none',
+    }}>
+      <p style={{ fontSize: 9, fontWeight: 700, color: c.label, marginBottom: 5, letterSpacing: '0.04em' }}>
         {question}
       </p>
       <p style={{
-        fontSize: 13,
-        fontWeight: 700,
-        color: answer ? '#111827' : '#d1d5db',
-        lineHeight: 1.4,
+        fontSize: 13, fontWeight: 700, lineHeight: 1.4,
+        color: answer ? '#111827' : '#9ca3af',
         wordBreak: 'break-all',
       }}>
         {answer || (editMode ? 'タップして入力' : '—')}
@@ -60,7 +55,10 @@ function QuestionCard({
   )
 }
 
-export default function ProfileCanvas({ background, elements, editMode, selectedId, onSelect, onUpdate }: Props) {
+export default function ProfileCanvas({
+  background, elements, editMode, fullScreen,
+  selectedId, onSelect, onUpdate,
+}: Props) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const elRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
@@ -73,45 +71,47 @@ export default function ProfileCanvas({ background, elements, editMode, selected
   const selectedTarget = selectedId ? elRefs.current.get(selectedId) ?? null : null
 
   const pxToPct = useCallback((pxLeft: number, pxTop: number): PctPosition => {
-    const canvas = canvasRef.current
-    if (!canvas) return { xPct: 0, yPct: 0 }
-    const { width, height } = canvas.getBoundingClientRect()
+    const c = canvasRef.current
+    if (!c) return { xPct: 0, yPct: 0 }
+    const { width, height } = c.getBoundingClientRect()
     return { xPct: (pxLeft / width) * 100, yPct: (pxTop / height) * 100 }
   }, [])
 
   const handleDragEnd = useCallback((e: OnDragEnd) => {
     if (!selectedEl) return
-    const pos = pxToPct(parseFloat(e.target.style.left), parseFloat(e.target.style.top))
-    onUpdate?.(selectedEl.id, pos, selectedEl.transform)
+    onUpdate?.(selectedEl.id, pxToPct(parseFloat(e.target.style.left), parseFloat(e.target.style.top)), selectedEl.transform)
   }, [selectedEl, onUpdate, pxToPct])
 
   const handleRotateEnd = useCallback((e: OnRotateEnd) => {
     if (!selectedEl) return
     const match = e.target.style.transform.match(/rotate\(([-\d.]+)deg\)/)
     const rotation = match ? parseFloat(match[1]) : 0
-    const pos = pxToPct(parseFloat(e.target.style.left || '0'), parseFloat(e.target.style.top || '0'))
-    onUpdate?.(selectedEl.id, pos, { ...selectedEl.transform, rotation })
+    onUpdate?.(selectedEl.id, pxToPct(parseFloat(e.target.style.left || '0'), parseFloat(e.target.style.top || '0')), { ...selectedEl.transform, rotation })
   }, [selectedEl, onUpdate, pxToPct])
 
   const handleScaleEnd = useCallback((e: OnScaleEnd) => {
     if (!selectedEl) return
     const match = e.target.style.transform.match(/scale\(([-\d.]+)\)/)
     const scale = match ? parseFloat(match[1]) : 1
-    const pos = pxToPct(parseFloat(e.target.style.left || '0'), parseFloat(e.target.style.top || '0'))
-    onUpdate?.(selectedEl.id, pos, { ...selectedEl.transform, scale })
+    onUpdate?.(selectedEl.id, pxToPct(parseFloat(e.target.style.left || '0'), parseFloat(e.target.style.top || '0')), { ...selectedEl.transform, scale })
   }, [selectedEl, onUpdate, pxToPct])
 
+  // fullScreen: editorで使用 → fixed inset-0
+  // normal:    公開ページで使用 → aspect-ratio 9/16
+  const outerStyle: React.CSSProperties = fullScreen
+    ? { position: 'fixed', inset: 0 }
+    : { position: 'relative', width: '100%', aspectRatio: '9/16' }
+
   return (
-    <div className="relative w-full" style={{ aspectRatio: '9/16' }}>
+    <div style={outerStyle}>
       <div
         ref={canvasRef}
-        className="absolute inset-0 rounded-3xl overflow-hidden"
-        style={{ ...getBgStyle(background), touchAction: 'none' }}
+        className={fullScreen ? 'absolute inset-0' : 'absolute inset-0 rounded-3xl overflow-hidden'}
+        style={{ ...getBgStyle(background), touchAction: editMode ? 'none' : 'auto' }}
         onClick={(e) => { if (e.target === canvasRef.current) onSelect?.(null) }}
       >
         {elements.map((el) => {
           const p = el.position as PctPosition
-          const isSelected = el.id === selectedId
           return (
             <div
               key={el.id}
@@ -122,19 +122,14 @@ export default function ProfileCanvas({ background, elements, editMode, selected
                 top: `${p.yPct}%`,
                 transform: `rotate(${el.transform.rotation}deg) scale(${el.transform.scale})`,
                 transformOrigin: 'top left',
-                zIndex: el.z_index + (isSelected ? 100 : 0),
+                zIndex: el.z_index + (selectedId === el.id ? 100 : 0),
                 cursor: editMode ? 'grab' : 'default',
                 userSelect: 'none',
-                // インスタ風: 選択中は輝く白のリング
-                filter: isSelected ? 'drop-shadow(0 0 0 2px white)' : 'none',
               }}
-              onClick={(e) => {
-                e.stopPropagation()
-                if (editMode) onSelect?.(el.id)
-              }}
+              onClick={(e) => { e.stopPropagation(); if (editMode) onSelect?.(el.id) }}
             >
               {el.type === 'sticker' && (
-                <span style={{ fontSize: 48, lineHeight: 1, display: 'block' }}>
+                <span style={{ fontSize: 52, lineHeight: 1, display: 'block' }}>
                   {(el.content as { emoji: string }).emoji}
                 </span>
               )}
@@ -151,25 +146,18 @@ export default function ProfileCanvas({ background, elements, editMode, selected
         })}
       </div>
 
-      {/* Moveableはoverflow:hiddenの外に置く */}
       {editMode && selectedTarget && selectedEl && (
         <Moveable
           target={selectedTarget}
           draggable rotatable scalable keepRatio
           throttleDrag={0} throttleRotate={0} throttleScale={0}
-          onDrag={({ target, left, top }) => {
-            target.style.left = `${left}px`
-            target.style.top = `${top}px`
-          }}
+          onDrag={({ target, left, top }) => { target.style.left = `${left}px`; target.style.top = `${top}px` }}
           onDragEnd={handleDragEnd}
-          onRotate={({ target, rotation }) => {
-            target.style.transform = `rotate(${rotation}deg) scale(${selectedEl.transform.scale})`
-          }}
+          onRotate={({ target, rotation }) => { target.style.transform = `rotate(${rotation}deg) scale(${selectedEl.transform.scale})` }}
           onRotateEnd={handleRotateEnd}
           onScale={({ target, scale, drag }) => {
             target.style.transform = `rotate(${selectedEl.transform.rotation}deg) scale(${scale[0]})`
-            target.style.left = `${drag.left}px`
-            target.style.top = `${drag.top}px`
+            target.style.left = `${drag.left}px`; target.style.top = `${drag.top}px`
           }}
           onScaleEnd={handleScaleEnd}
         />
