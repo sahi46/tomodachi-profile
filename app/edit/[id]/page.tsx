@@ -12,9 +12,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 type SheetType = 'sticker' | 'question' | 'background' | 'template' | 'title' | null
 
-interface CustomQuestion { id: string; question: string; design: string }
-const getCustomStickers  = (): string[]          => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_stickers')  ?? '[]' : '[]')
-const getCustomQuestions = (): CustomQuestion[]  => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_questions') ?? '[]' : '[]')
+const getCustomStickers = (): string[] => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_stickers') ?? '[]' : '[]')
 
 const EMOJI_LIST = [
   '😊','🌸','⭐','💕','🎀','🌈','🍓','🐱','🌙','💫',
@@ -94,15 +92,13 @@ export default function EditPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sheet, setSheet]           = useState<SheetType>(null)
   const [customQ, setCustomQ]       = useState('')
-  const [myStickers,   setMyStickers]   = useState<string[]>([])
-  const [myQuestions,  setMyQuestions]  = useState<CustomQuestion[]>([])
+  const [myStickers, setMyStickers] = useState<string[]>([])
   const [titleInput, setTitleInput] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [saved, setSaved]           = useState(false)
 
   useEffect(() => {
     setMyStickers(getCustomStickers())
-    setMyQuestions(getCustomQuestions())
   }, [])
 
   useEffect(() => {
@@ -399,21 +395,7 @@ export default function EditPage() {
               追加
             </button>
           </div>
-          {myQuestions.length > 0 && (
-            <div>
-              <p className="text-xs text-gray-400 font-semibold mb-2">保存済み</p>
-              <div className="grid grid-cols-2 gap-2">
-                {myQuestions.map(q => (
-                  <button key={q.id} onClick={() => addQuestion(q.question, q.design)}
-                    className="text-left text-sm bg-pink-50 border border-pink-100 rounded-xl px-4 py-3 font-medium text-gray-700 active:scale-95 transition-all">
-                    {q.question}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
           <div>
-            {myQuestions.length > 0 && <p className="text-xs text-gray-400 font-semibold mb-2">プリセット</p>}
             <div className="grid grid-cols-2 gap-2">
               {QUESTION_PRESETS.map(({ q, design }) => (
                 <button key={q} onClick={() => addQuestion(q, design)}

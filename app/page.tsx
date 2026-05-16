@@ -13,12 +13,6 @@ interface Response {
   created_at: string
 }
 
-interface CustomQuestion {
-  id: string
-  question: string
-  design: string
-}
-
 function ProfileThumb({ background }: { background: Background }) {
   const style: React.CSSProperties =
     background.type === 'solid'
@@ -35,11 +29,6 @@ const EMOJI_LIST = [
   '🫶','🥹','💝','🌷','🎪','🩷','🩵','🌟','🎶','🍭',
   '🐻','🌝','🎂','🌊','🦄','🍉','🎸','🪷','🫧','🧸',
 ]
-
-const DESIGNS = ['pink', 'purple', 'mint', 'yellow', 'blue'] as const
-const DESIGN_COLORS: Record<string, string> = {
-  pink: '#f9a8d4', purple: '#c4b5fd', mint: '#6ee7b7', yellow: '#fcd34d', blue: '#93c5fd',
-}
 
 type TabKey = 'library' | 'created' | 'parts' | 'settings'
 
@@ -89,8 +78,7 @@ const TABS: Array<{ key: TabKey; label: string; icon: (a: boolean) => React.Reac
 
 const getTemplateIds = (): string[] => JSON.parse(localStorage.getItem('tomo_profile_ids') || '[]')
 const getBookIds     = (): string[] => JSON.parse(localStorage.getItem('tomo_book_ids')    || '[]')
-const getCustomStickers  = (): string[]          => JSON.parse(localStorage.getItem('tomo_custom_stickers')  || '[]')
-const getCustomQuestions = (): CustomQuestion[]  => JSON.parse(localStorage.getItem('tomo_custom_questions') || '[]')
+const getCustomStickers = (): string[] => JSON.parse(localStorage.getItem('tomo_custom_stickers') || '[]')
 
 export default function LibraryPage() {
   const router = useRouter()
@@ -113,12 +101,8 @@ export default function LibraryPage() {
   const lpStart = useRef({ x: 0, y: 0 })
 
   // パーツ
-  const [customStickers,  setCustomStickers]  = useState<string[]>([])
-  const [customQuestions, setCustomQuestions] = useState<CustomQuestion[]>([])
-  const [emojiSheetOpen,  setEmojiSheetOpen]  = useState(false)
-  const [qFormOpen,       setQFormOpen]       = useState(false)
-  const [qInput,          setQInput]          = useState('')
-  const [qDesign,         setQDesign]         = useState('pink')
+  const [customStickers, setCustomStickers] = useState<string[]>([])
+  const [emojiSheetOpen, setEmojiSheetOpen] = useState(false)
 
   const onLongPressStart = (e: React.PointerEvent, profile: Profile, type: 'template' | 'book') => {
     lpFired.current = false
@@ -155,7 +139,6 @@ export default function LibraryPage() {
 
   useEffect(() => {
     setCustomStickers(getCustomStickers())
-    setCustomQuestions(getCustomQuestions())
 
     const load = async () => {
       const templateIds = getTemplateIds()
@@ -232,22 +215,6 @@ export default function LibraryPage() {
     const next = getCustomStickers().filter(e => e !== emoji)
     localStorage.setItem('tomo_custom_stickers', JSON.stringify(next))
     setCustomStickers(next)
-  }
-
-  const saveCustomQuestion = () => {
-    if (!qInput.trim()) return
-    const q: CustomQuestion = { id: Date.now().toString(), question: qInput.trim(), design: qDesign }
-    const next = [q, ...getCustomQuestions()]
-    localStorage.setItem('tomo_custom_questions', JSON.stringify(next))
-    setCustomQuestions(next)
-    setQInput('')
-    setQFormOpen(false)
-  }
-
-  const removeCustomQuestion = (id: string) => {
-    const next = getCustomQuestions().filter(q => q.id !== id)
-    localStorage.setItem('tomo_custom_questions', JSON.stringify(next))
-    setCustomQuestions(next)
   }
 
   const tabTitle = { library: 'ライブラリ', created: 'つくった', parts: 'パーツ', settings: 'せってい' }
@@ -388,90 +355,6 @@ export default function LibraryPage() {
               )}
             </div>
 
-            {/* 仕切り */}
-            <div className="h-px bg-gray-100" />
-
-            {/* 質問カードセクション */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-base font-black text-gray-800">質問カード</p>
-                <button
-                  onClick={() => setQFormOpen(v => !v)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-white text-xs font-bold active:scale-95 transition-transform"
-                  style={{ backgroundColor: ACCENT }}
-                >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                  追加
-                </button>
-              </div>
-
-              {/* 追加フォーム */}
-              {qFormOpen && (
-                <div className="bg-gray-50 rounded-2xl p-4 mb-4 space-y-3">
-                  <input
-                    type="text"
-                    value={qInput}
-                    onChange={e => setQInput(e.target.value)}
-                    placeholder="質問文を入力..."
-                    className="w-full text-sm bg-white border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-pink-300 transition-colors"
-                  />
-                  {/* デザインカラー選択 */}
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 mr-1">色</span>
-                    {DESIGNS.map(d => (
-                      <button
-                        key={d}
-                        onClick={() => setQDesign(d)}
-                        className="w-7 h-7 rounded-full transition-all active:scale-90"
-                        style={{
-                          backgroundColor: DESIGN_COLORS[d],
-                          border: qDesign === d ? '2.5px solid #374151' : '2.5px solid transparent',
-                          transform: qDesign === d ? 'scale(1.15)' : undefined,
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => { setQFormOpen(false); setQInput('') }}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-bold text-gray-500 bg-gray-100 active:scale-95 transition-transform"
-                    >
-                      キャンセル
-                    </button>
-                    <button
-                      onClick={saveCustomQuestion}
-                      disabled={!qInput.trim()}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white active:scale-95 transition-transform disabled:opacity-30"
-                      style={{ backgroundColor: ACCENT }}
-                    >
-                      保存
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {customQuestions.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-8 text-gray-300">
-                  <span className="text-4xl">💬</span>
-                  <p className="text-xs">まだ質問カードがありません</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {customQuestions.map(q => (
-                    <div key={q.id} className="flex items-center bg-gray-50 rounded-xl px-4 py-3 gap-3">
-                      <div className="w-1 h-7 rounded-full shrink-0" style={{ backgroundColor: DESIGN_COLORS[q.design] ?? DESIGN_COLORS.pink }} />
-                      <span className="flex-1 text-sm font-medium text-gray-700 truncate">{q.question}</span>
-                      <button
-                        onClick={() => removeCustomQuestion(q.id)}
-                        className="text-gray-300 text-lg leading-none active:text-rose-400 transition-colors shrink-0"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
         )}
 
