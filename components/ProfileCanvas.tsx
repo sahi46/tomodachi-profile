@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useCallback } from 'react'
-import Moveable, { OnDragEnd, OnRotateEnd, OnScaleEnd } from 'react-moveable'
 import { CanvasElement, Background, PctPosition } from '@/types'
 import TemplateCard from '@/components/TemplateCard'
 import { TEMPLATES } from '@/lib/templates'
@@ -10,11 +9,14 @@ interface Props {
   background: Background
   elements: CanvasElement[]
   editMode?: boolean
-  fullScreen?: boolean   // legacy fullscreen mode (unused in new editor)
-  contained?: boolean    // fills parent div exactly (editor mode)
+  fullScreen?: boolean
+  contained?: boolean
   selectedId?: string | null
   onSelect?: (id: string | null) => void
   onUpdate?: (id: string, pos: PctPosition, transform: { rotation: number; scale: number }) => void
+  onDragStart?: () => void
+  onDragEnd?: () => void
+  onTapElement?: (id: string) => void
 }
 
 function getBgStyle(bg: Background): React.CSSProperties {
@@ -30,8 +32,8 @@ const CARD_DESIGNS: Record<string, { border: string; label: string }> = {
   blue:   { border: '#93c5fd', label: '#3b82f6' },
 }
 
-function QuestionCard({ question, answer, design, editMode }: {
-  question: string; answer: string; design: string; editMode?: boolean
+function QuestionCard({ question, answer, design, answerMode }: {
+  question: string; answer: string; design: string; answerMode?: boolean
 }) {
   const c = CARD_DESIGNS[design] ?? CARD_DESIGNS.pink
   return (
@@ -43,6 +45,7 @@ function QuestionCard({ question, answer, design, editMode }: {
       padding: '10px 12px',
       boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
       pointerEvents: 'none',
+      outline: answerMode && !answer ? `2px dashed ${c.border}` : 'none',
     }}>
       <p style={{ fontSize: 9, fontWeight: 700, color: c.label, marginBottom: 5, letterSpacing: '0.04em' }}>
         {question}
@@ -52,7 +55,7 @@ function QuestionCard({ question, answer, design, editMode }: {
         color: answer ? '#111827' : '#9ca3af',
         wordBreak: 'break-all',
       }}>
-        {answer || (editMode ? 'タップして入力' : '—')}
+        {answer || (answerMode ? 'タップして回答' : '—')}
       </p>
     </div>
   )
@@ -60,44 +63,84 @@ function QuestionCard({ question, answer, design, editMode }: {
 
 export default function ProfileCanvas({
   background, elements, editMode, fullScreen, contained,
-  selectedId, onSelect, onUpdate,
+  selectedId, onSelect, onUpdate, onDragStart, onDragEnd, onTapElement,
 }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const elRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+
+  const dragging = useRef<{
+    elId: string
+    startClientX: number
+    startClientY: number
+    startXPct: number
+    startYPct: number
+    moved: boolean
+  } | null>(null)
 
   const setRef = useCallback((id: string) => (node: HTMLDivElement | null) => {
     if (node) elRefs.current.set(id, node)
     else elRefs.current.delete(id)
   }, [])
 
-  const selectedEl = elements.find(e => e.id === selectedId)
-  const selectedTarget = selectedId ? elRefs.current.get(selectedId) ?? null : null
+  const handlePointerDown = useCallback((e: React.PointerEvent, el: CanvasElement) => {
+    if (!editMode) return
+    e.stopPropagation()
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    onSelect?.(el.id)
+    const p = el.position as PctPosition
+    dragging.current = {
+      elId: el.id,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startXPct: p.xPct,
+      startYPct: p.yPct,
+      moved: false,
+    }
+  }, [editMode, onSelect])
 
-  const pxToPct = useCallback((pxLeft: number, pxTop: number): PctPosition => {
+  const handlePointerMove = useCallback((e: React.PointerEvent, elId: string) => {
+    const d = dragging.current
+    if (!d || d.elId !== elId) return
+    const dx = e.clientX - d.startClientX
+    const dy = e.clientY - d.startClientY
+
+    if (!d.moved && Math.hypot(dx, dy) > 6) {
+      d.moved = true
+      onDragStart?.()
+    }
+    if (!d.moved) return
+
     const c = canvasRef.current
-    if (!c) return { xPct: 0, yPct: 0 }
+    if (!c) return
     const { width, height } = c.getBoundingClientRect()
-    return { xPct: (pxLeft / width) * 100, yPct: (pxTop / height) * 100 }
-  }, [])
+    const newX = Math.max(0, Math.min(90, d.startXPct + (dx / width) * 100))
+    const newY = Math.max(0, Math.min(95, d.startYPct + (dy / height) * 100))
 
-  const handleDragEnd = useCallback((e: OnDragEnd) => {
-    if (!selectedEl) return
-    onUpdate?.(selectedEl.id, pxToPct(parseFloat(e.target.style.left), parseFloat(e.target.style.top)), selectedEl.transform)
-  }, [selectedEl, onUpdate, pxToPct])
+    const dom = elRefs.current.get(elId)
+    if (dom) { dom.style.left = `${newX}%`; dom.style.top = `${newY}%` }
+  }, [onDragStart])
 
-  const handleRotateEnd = useCallback((e: OnRotateEnd) => {
-    if (!selectedEl) return
-    const match = e.target.style.transform.match(/rotate\(([-\d.]+)deg\)/)
-    const rotation = match ? parseFloat(match[1]) : 0
-    onUpdate?.(selectedEl.id, pxToPct(parseFloat(e.target.style.left || '0'), parseFloat(e.target.style.top || '0')), { ...selectedEl.transform, rotation })
-  }, [selectedEl, onUpdate, pxToPct])
+  const handlePointerUp = useCallback((e: React.PointerEvent, el: CanvasElement) => {
+    const d = dragging.current
+    if (!d || d.elId !== el.id) return
 
-  const handleScaleEnd = useCallback((e: OnScaleEnd) => {
-    if (!selectedEl) return
-    const match = e.target.style.transform.match(/scale\(([-\d.]+)\)/)
-    const scale = match ? parseFloat(match[1]) : 1
-    onUpdate?.(selectedEl.id, pxToPct(parseFloat(e.target.style.left || '0'), parseFloat(e.target.style.top || '0')), { ...selectedEl.transform, scale })
-  }, [selectedEl, onUpdate, pxToPct])
+    if (d.moved) {
+      const dom = elRefs.current.get(el.id)
+      if (dom) {
+        onUpdate?.(el.id, {
+          xPct: parseFloat(dom.style.left),
+          yPct: parseFloat(dom.style.top),
+        }, el.transform)
+      }
+      onDragEnd?.()
+    }
+    dragging.current = null
+  }, [onUpdate, onDragEnd])
+
+  const handlePointerCancel = useCallback(() => {
+    if (dragging.current?.moved) onDragEnd?.()
+    dragging.current = null
+  }, [onDragEnd])
 
   const outerStyle: React.CSSProperties = fullScreen
     ? { position: 'fixed', inset: 0 }
@@ -105,15 +148,23 @@ export default function ProfileCanvas({
     ? { position: 'relative', width: '100%', height: '100%' }
     : { position: 'relative', width: '100%', aspectRatio: '9/16' }
 
+  const answerMode = !editMode && !!onTapElement
+
   return (
     <div style={outerStyle}>
       <div
         ref={canvasRef}
-        className={fullScreen ? 'absolute inset-0' : 'absolute inset-0 rounded-3xl overflow-hidden'}
-        style={{ ...getBgStyle(background), touchAction: editMode ? 'none' : 'auto' }}
-        onClick={(e) => { if (e.target === canvasRef.current) onSelect?.(null) }}
+        className={fullScreen ? 'absolute inset-0' : 'absolute inset-0 overflow-hidden'}
+        style={{
+          ...getBgStyle(background),
+          touchAction: editMode ? 'none' : 'auto',
+          borderRadius: fullScreen ? 0 : 24,
+        }}
+        onClick={e => {
+          if (editMode && e.target === canvasRef.current) onSelect?.(null)
+        }}
       >
-        {elements.map((el) => {
+        {elements.map(el => {
           const p = el.position as PctPosition
           return (
             <div
@@ -126,13 +177,22 @@ export default function ProfileCanvas({
                 transform: `rotate(${el.transform.rotation}deg) scale(${el.transform.scale})`,
                 transformOrigin: 'top left',
                 zIndex: el.z_index + (selectedId === el.id ? 100 : 0),
-                cursor: editMode ? 'grab' : 'default',
+                cursor: editMode ? 'grab' : (answerMode ? 'pointer' : 'default'),
                 userSelect: 'none',
+                touchAction: 'none',
+                WebkitUserSelect: 'none',
               }}
-              onClick={(e) => { e.stopPropagation(); if (editMode) onSelect?.(el.id) }}
+              onPointerDown={editMode ? e => handlePointerDown(e, el) : undefined}
+              onPointerMove={editMode ? e => handlePointerMove(e, el.id) : undefined}
+              onPointerUp={editMode ? e => handlePointerUp(e, el) : undefined}
+              onPointerCancel={editMode ? handlePointerCancel : undefined}
+              onClick={e => {
+                e.stopPropagation()
+                if (answerMode) onTapElement!(el.id)
+              }}
             >
               {el.type === 'sticker' && (
-                <span style={{ fontSize: 52, lineHeight: 1, display: 'block' }}>
+                <span style={{ fontSize: 52, lineHeight: 1, display: 'block', pointerEvents: 'none' }}>
                   {(el.content as { emoji: string }).emoji}
                 </span>
               )}
@@ -141,36 +201,23 @@ export default function ProfileCanvas({
                   question={(el.content as { question: string; answer: string }).question}
                   answer={(el.content as { question: string; answer: string }).answer}
                   design={el.style.design ?? 'pink'}
-                  editMode={editMode}
+                  answerMode={answerMode}
                 />
               )}
               {el.type === 'template_card' && (() => {
                 const c = el.content as { templateId: string; answers: Record<string, string> }
                 const tmpl = TEMPLATES.find(t => t.id === c.templateId)
                 if (!tmpl) return null
-                return <TemplateCard template={tmpl} answers={c.answers} editMode={editMode} />
+                return (
+                  <div style={{ pointerEvents: 'none', outline: answerMode ? '2px dashed rgba(168,85,247,0.4)' : 'none', borderRadius: 16 }}>
+                    <TemplateCard template={tmpl} answers={c.answers} />
+                  </div>
+                )
               })()}
             </div>
           )
         })}
       </div>
-
-      {editMode && selectedTarget && selectedEl && (
-        <Moveable
-          target={selectedTarget}
-          draggable rotatable scalable keepRatio
-          throttleDrag={0} throttleRotate={0} throttleScale={0}
-          onDrag={({ target, left, top }) => { target.style.left = `${left}px`; target.style.top = `${top}px` }}
-          onDragEnd={handleDragEnd}
-          onRotate={({ target, rotation }) => { target.style.transform = `rotate(${rotation}deg) scale(${selectedEl.transform.scale})` }}
-          onRotateEnd={handleRotateEnd}
-          onScale={({ target, scale, drag }) => {
-            target.style.transform = `rotate(${selectedEl.transform.rotation}deg) scale(${scale[0]})`
-            target.style.left = `${drag.left}px`; target.style.top = `${drag.top}px`
-          }}
-          onScaleEnd={handleScaleEnd}
-        />
-      )}
     </div>
   )
 }

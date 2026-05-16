@@ -101,6 +101,7 @@ export default function EditPage() {
   const [customQ, setCustomQ]     = useState('')
   const [titleInput, setTitleInput] = useState('')
   const [copied, setCopied]       = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -212,7 +213,7 @@ export default function EditPage() {
       onDoubleClick={e => e.preventDefault()}
     >
       {/* ── キャンバスエリア（ボトムバー分を除いた領域）── */}
-      <div className="flex-1 min-h-0 relative overflow-hidden">
+      <div className="flex-1 min-h-0 relative overflow-hidden" style={{ touchAction: 'none', overscrollBehavior: 'none' }}>
         <div className="absolute inset-0">
           <ProfileCanvas
             background={profile.background}
@@ -222,6 +223,8 @@ export default function EditPage() {
             selectedId={selectedId}
             onSelect={id => { setSelectedId(id); if (id === null) setSheet(null) }}
             onUpdate={handleUpdate}
+            onDragStart={() => setIsDragging(true)}
+            onDragEnd={() => setIsDragging(false)}
           />
         </div>
 
@@ -235,8 +238,8 @@ export default function EditPage() {
           </svg>
         </button>
 
-        {/* 右側: 縦ツールアイコン */}
-        <div className="absolute top-safe right-4 z-50 mt-3 flex flex-col items-center gap-3">
+        {/* 右側: 縦ツールアイコン（ドラッグ中は非表示）*/}
+        <div className={`absolute top-safe right-4 z-50 mt-3 flex flex-col items-center gap-3 transition-opacity duration-150 ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           {SIDE_TOOLS.map(({ key, svg }) => (
             <button
               key={key as string}
@@ -270,9 +273,9 @@ export default function EditPage() {
         </div>
       </div>
 
-      {/* ── ボトムバー ── */}
+      {/* ── ボトムバー（ドラッグ中は非表示）── */}
       <div
-        className="shrink-0 bg-white pb-safe flex items-center px-4 gap-3"
+        className={`shrink-0 bg-white pb-safe flex items-center px-4 gap-3 transition-opacity duration-150 ${isDragging ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
         style={{ height: BOTTOM_BAR }}
       >
         {/* 左: サブアクション2つ */}

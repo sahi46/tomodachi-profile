@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import ProfileCanvas from '@/components/ProfileCanvas'
+import AnswerCanvas from '@/components/AnswerCanvas'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -17,19 +17,5 @@ export default async function PublicProfilePage({ params }: Props) {
   const { data: elements } = await supabase
     .from('elements').select('*').eq('profile_id', profile.id).order('z_index')
 
-  return (
-    <main className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-start py-10 px-4">
-      <div className="w-full max-w-sm space-y-5">
-        <h1 className="text-center text-white/50 text-sm font-semibold tracking-widest uppercase">
-          {profile.title}
-        </h1>
-        <ProfileCanvas
-          background={profile.background}
-          elements={elements ?? []}
-          editMode={false}
-        />
-        <p className="text-center text-white/15 text-xs pb-6">ともプロ</p>
-      </div>
-    </main>
-  )
+  return <AnswerCanvas profile={profile} elements={elements ?? []} />
 }
