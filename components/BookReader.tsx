@@ -22,7 +22,15 @@ type AnimDir  = 'fwd' | 'bwd'
 type AnimStep = 'exit' | 'enter'
 type AnimState = { dir: AnimDir; step: AnimStep; from: number; to: number } | null
 
-const PHASE_MS = 220
+const PHASE_MS = 200
+
+// transformOrigin per animation name
+const ORIGINS: Record<string, string> = {
+  bookExitFwd:  'left center',   // page folds away to the left (pivot = left edge)
+  bookEnterFwd: 'right center',  // new page opens from the right (pivot = right edge)
+  bookExitBwd:  'right center',  // page folds away to the right
+  bookEnterBwd: 'left center',   // new page opens from the left
+}
 
 const fmtDate = (s: string) => {
   const d = new Date(s)
@@ -54,7 +62,6 @@ export default function BookReader({ profile, elements, responses }: Props) {
   const didSwipe       = useRef(false)
   const animating      = useRef(false)
 
-  // Two-phase animation: exit (220ms) → setPage + enter (220ms) → done
   useEffect(() => {
     if (!anim) { animating.current = false; return }
     if (anim.step === 'exit') {
@@ -110,22 +117,19 @@ export default function BookReader({ profile, elements, responses }: Props) {
     else if (dx > 50 || vel > 0.25) goTo(page - 1)
   }
 
-  // Which pages to render and how
-  const pagesToRender = (): Array<{ index: number; animName?: string; zIndex: number; key: string }> => {
-    if (!anim) {
-      return [{ index: page, zIndex: 0, key: String(page) }]
-    }
+  type PageEntry = { index: number; animName?: string; zIndex: number; key: string }
+
+  const pagesToRender = (): PageEntry[] => {
+    if (!anim) return [{ index: page, zIndex: 0, key: String(page) }]
     if (anim.step === 'exit') {
       const exitAnim = anim.dir === 'fwd' ? 'bookExitFwd' : 'bookExitBwd'
       return [
-        { index: anim.to,   zIndex: 0, key: String(anim.to) },           // destination — behind, no anim
-        { index: anim.from, zIndex: 1, key: String(anim.from), animName: exitAnim }, // current — exits on top
+        { index: anim.to,   zIndex: 0, key: String(anim.to) },
+        { index: anim.from, zIndex: 1, key: String(anim.from), animName: exitAnim },
       ]
-    } else {
-      // enter: only destination page, force remount via key suffix
-      const enterAnim = anim.dir === 'fwd' ? 'bookEnterFwd' : 'bookEnterBwd'
-      return [{ index: anim.to, zIndex: 0, key: `${anim.to}-enter`, animName: enterAnim }]
     }
+    const enterAnim = anim.dir === 'fwd' ? 'bookEnterFwd' : 'bookEnterBwd'
+    return [{ index: anim.to, zIndex: 0, key: `${anim.to}-enter`, animName: enterAnim }]
   }
 
   if (responses.length === 0) {
@@ -167,42 +171,59 @@ export default function BookReader({ profile, elements, responses }: Props) {
 
       {/* ページエリア */}
       <div
-        className="flex-1 flex items-center justify-center overflow-hidden"
-        style={{ perspective: '1500px' }}
+        className="flex-1 relative overflow-hidden"
+        style={{ perspective: '1200px' }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
       >
         {pagesToRender().map(({ index, animName, zIndex, key }) => {
           const answered = applyAnswers(elements, responses[index].answers)
+          const origin   = animName ? ORIGINS[animName] : 'center'
           return (
             <div
               key={key}
-              className="absolute flex flex-col items-center gap-2 px-3"
               style={{
-                width: '100%',
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
                 zIndex,
-                animation: animName ? `${animName} ${PHASE_MS}ms ease-in-out forwards` : undefined,
+                transformOrigin: origin,
                 transformStyle: 'preserve-3d',
+                backfaceVisibility: 'hidden',
+                WebkitBackfaceVisibility: 'hidden',
+                animation: animName ? `${animName} ${PHASE_MS}ms linear forwards` : undefined,
               }}
             >
-              <p className="text-white/30 text-[11px] font-medium shrink-0">
+              {/* 日付テキスト */}
+              <p style={{ color: 'rgba(255,255,255,0.28)', fontSize: 11, margin: '8px 0 6px', flexShrink: 0 }}>
                 {fmtDate(responses[index].created_at)} に届いた回答
               </p>
-              {/* 9:16 canvas — fits within available vertical space */}
+
+              {/* キャンバスエリア: 残り高さを flex-1 で埋め、9:16 を維持して表示 */}
               <div style={{
+                flex: 1,
                 width: '100%',
-                aspectRatio: '9 / 16',
-                maxHeight: 'calc(100dvh - 150px)',
-                maxWidth: 'min(100%, calc((100dvh - 150px) * 9 / 16))',
-                margin: '0 auto',
-                position: 'relative',
+                minHeight: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 12px 8px',
               }}>
-                <ProfileCanvas
-                  background={profile.background}
-                  elements={answered}
-                  editMode={false}
-                />
+                <div style={{
+                  maxHeight: '100%',
+                  maxWidth: '100%',
+                  aspectRatio: '9 / 16',
+                  position: 'relative',
+                }}>
+                  <ProfileCanvas
+                    background={profile.background}
+                    elements={answered}
+                    editMode={false}
+                  />
+                </div>
               </div>
             </div>
           )
