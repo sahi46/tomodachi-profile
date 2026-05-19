@@ -31,6 +31,54 @@ const ANSWER_COLORS = [
 ]
 const FONT_SIZES = [14, 16, 18, 20, 24, 28, 32, 40]
 
+type ActiveTool = 'text' | 'stamp' | 'question' | 'shape'
+
+const STAMPS = [
+  '😊','😂','🥹','😍','😎','🥳','😭','😱',
+  '🫶','❤️','💕','💖','✨','🌟','🔥','💫',
+  '🎉','🎊','🌈','🦋','🌸','🌺','🍓','🍦',
+  '☕','🎵','🎶','💎','👑','🌙','⭐','🐱',
+  '🐶','🐰','🦊','🐸','🍀','🌻','🎀','🍡',
+]
+
+const SHAPES = [
+  '★','☆','♥','♡','◆','◇','●','○',
+  '■','□','▲','△','✦','✧','✿','❀',
+  '☀','☁','⚡','♪','♫','✓','→','←',
+]
+
+function TextIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+      <path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>
+    </svg>
+  )
+}
+function StampIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+      <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="3"/>
+      <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="3"/>
+    </svg>
+  )
+}
+function QuestionIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+  )
+}
+function ShapeIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+    </svg>
+  )
+}
+
 function toCanvasElement(t: TextElementData): CanvasElement {
   return {
     id: t.id,
@@ -273,6 +321,7 @@ export default function AnswerCanvas({ profile, elements }: Props) {
   const [inputBold, setInputBold]     = useState(false)
 
   const [selectedId, setSelectedId]   = useState<string | null>(null)
+  const [activeTool, setActiveTool]   = useState<ActiveTool | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [submitting, setSubmitting]   = useState(false)
   const [submitted, setSubmitted]     = useState(false)
@@ -280,6 +329,7 @@ export default function AnswerCanvas({ profile, elements }: Props) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
   const allElements: CanvasElement[] = [...elements, ...textEls.map(toCanvasElement)]
+  const questionEls = elements.filter(el => el.type === 'question')
 
   // tap a QuestionBlock → open text sheet nearby
   const openSheetNearQuestion = useCallback((elId: string) => {
@@ -308,6 +358,32 @@ export default function AnswerCanvas({ profile, elements }: Props) {
     setSelectedId(null)
     setSheetOpen(true)
     setTimeout(() => inputRef.current?.focus(), 80)
+  }
+
+  const handleToolTap = (tool: ActiveTool) => {
+    if (tool === 'text') {
+      setActiveTool(null)
+      openSheetFree()
+    } else {
+      setActiveTool(prev => prev === tool ? null : tool)
+      setSelectedId(null)
+    }
+  }
+
+  const addStamp = (text: string) => {
+    const newEl: TextElementData = {
+      id: uuidv4(),
+      text,
+      xPct: 10 + Math.random() * 70,
+      yPct: 15 + Math.random() * 55,
+      rotation: (Math.random() - 0.5) * 20,
+      scale: 1,
+      color: '#111827',
+      fontSize: 36,
+      fontBold: false,
+    }
+    setTextEls(prev => [...prev, newEl])
+    setActiveTool(null)
   }
 
   const confirmText = () => {
@@ -372,13 +448,39 @@ export default function AnswerCanvas({ profile, elements }: Props) {
     )
   }
 
+  const TOOLS: { id: ActiveTool; label: string; icon: React.ReactNode }[] = [
+    { id: 'text',     label: 'テキスト', icon: <TextIcon /> },
+    { id: 'stamp',    label: 'スタンプ', icon: <StampIcon /> },
+    { id: 'question', label: '質問',     icon: <QuestionIcon /> },
+    { id: 'shape',    label: '図形',     icon: <ShapeIcon /> },
+  ]
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a]" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
-      <div className="pt-safe px-4 pt-3 pb-1">
-        <p className="text-white/50 text-sm font-semibold text-center">{profile.title}</p>
+    <div className="min-h-screen bg-[#0a0a0a] flex flex-col" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
+
+      {/* ヘッダー */}
+      <div className="pt-safe shrink-0">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="w-16" />
+          <p className="text-white/50 text-sm font-semibold">{profile.title}</p>
+          <button
+            onClick={() => { setSelectedId(null); setActiveTool(null); setConfirmOpen(true) }}
+            disabled={submitting}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-full text-white text-sm font-black active:scale-90 transition-transform disabled:opacity-40"
+            style={{
+              background: 'linear-gradient(135deg, #f472b6, #a855f7)',
+              boxShadow: '0 4px 16px rgba(168,85,247,0.45)',
+            }}
+          >
+            {submitting
+              ? <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              : '送る'}
+          </button>
+        </div>
       </div>
 
-      <div className="relative">
+      {/* キャンバス */}
+      <div className="shrink-0">
         <ProfileCanvas
           background={profile.background}
           elements={allElements}
@@ -387,57 +489,119 @@ export default function AnswerCanvas({ profile, elements }: Props) {
           onSelect={setSelectedId}
           onUpdate={updateTextEl}
           onTapQuestion={openSheetNearQuestion}
-          onCanvasTap={() => setSelectedId(null)}
+          onCanvasTap={() => { setSelectedId(null); setActiveTool(null) }}
         />
-
-        {/* 文字を追加ボタン（左下） */}
-        {!selectedId && !sheetOpen && (
-          <button
-            onClick={openSheetFree}
-            className="absolute bottom-4 left-4 z-20 flex items-center gap-1.5 px-4 py-2.5 rounded-full text-white text-sm font-black active:scale-90 transition-transform"
-            style={{
-              background: 'rgba(255,255,255,0.15)',
-              backdropFilter: 'blur(8px)',
-              border: '1px solid rgba(255,255,255,0.2)',
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>
-            </svg>
-            文字を追加
-          </button>
-        )}
-
-        {/* 送信ボタン（右下） */}
-        <div className="absolute bottom-4 right-4 z-20">
-          <button
-            onClick={() => { setSelectedId(null); setConfirmOpen(true) }}
-            disabled={submitting}
-            className="flex items-center justify-center rounded-full active:scale-90 transition-transform shadow-xl disabled:opacity-50"
-            style={{
-              width: 52, height: 52,
-              background: 'linear-gradient(135deg, #f472b6, #a855f7)',
-              boxShadow: '0 6px 24px rgba(168,85,247,0.55)',
-            }}
-          >
-            {submitting ? (
-              <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-            ) : (
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/>
-              </svg>
-            )}
-          </button>
-        </div>
-
-        {!selectedId && !sheetOpen && (
-          <p className="absolute bottom-5 left-0 right-0 text-center text-white/20 text-[10px] pointer-events-none">
-            質問をタップ、または「文字を追加」で書き込もう
-          </p>
-        )}
       </div>
 
-      {/* TextElement 選択ツールバー */}
+      {/* 下部ツールバー */}
+      <div
+        className="shrink-0 bg-[#111827] border-t border-white/10"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 8px)' }}
+      >
+        <div className="flex">
+          {TOOLS.map(({ id, label, icon }) => {
+            const isActive = activeTool === id
+            return (
+              <button
+                key={id}
+                onClick={() => handleToolTap(id)}
+                className="flex-1 flex flex-col items-center gap-1 py-3 active:scale-90 transition-transform"
+              >
+                <div style={{ color: isActive ? '#f472b6' : 'rgba(255,255,255,0.55)' }}>
+                  {icon}
+                </div>
+                <span className="text-[10px] font-bold" style={{ color: isActive ? '#f472b6' : 'rgba(255,255,255,0.35)' }}>
+                  {label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* スタンプピッカー */}
+      {activeTool === 'stamp' && (
+        <div className="fixed inset-0 z-40 flex items-end" onClick={() => setActiveTool(null)}>
+          <div
+            className="w-full bg-[#1f2937] rounded-t-3xl"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-white/20" />
+            </div>
+            <p className="px-5 py-2 text-xs font-black text-white/40">スタンプ</p>
+            <div className="px-4 pb-2 grid grid-cols-8 gap-1">
+              {STAMPS.map(s => (
+                <button key={s} onClick={() => addStamp(s)}
+                  className="text-2xl h-10 flex items-center justify-center active:scale-75 transition-transform">
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 質問ピッカー */}
+      {activeTool === 'question' && (
+        <div className="fixed inset-0 z-40 flex items-end" onClick={() => setActiveTool(null)}>
+          <div
+            className="w-full bg-[#1f2937] rounded-t-3xl"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-white/20" />
+            </div>
+            <p className="px-5 py-2 text-xs font-black text-white/40">質問に答える</p>
+            {questionEls.length === 0 ? (
+              <p className="px-5 pb-5 text-sm text-white/30">質問がありません</p>
+            ) : (
+              <div className="px-4 pb-3 space-y-2 max-h-64 overflow-y-auto">
+                {questionEls.map(el => (
+                  <button
+                    key={el.id}
+                    onClick={() => { openSheetNearQuestion(el.id); setActiveTool(null) }}
+                    className="w-full text-left px-4 py-3 rounded-2xl active:scale-[0.97] transition-transform"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.07)' }}
+                  >
+                    <p className="text-white text-sm font-bold">
+                      {(el.content as { question: string }).question}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 図形ピッカー */}
+      {activeTool === 'shape' && (
+        <div className="fixed inset-0 z-40 flex items-end" onClick={() => setActiveTool(null)}>
+          <div
+            className="w-full bg-[#1f2937] rounded-t-3xl"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-white/20" />
+            </div>
+            <p className="px-5 py-2 text-xs font-black text-white/40">図形</p>
+            <div className="px-4 pb-2 grid grid-cols-8 gap-1">
+              {SHAPES.map(s => (
+                <button key={s} onClick={() => addStamp(s)}
+                  className="text-xl h-10 flex items-center justify-center font-black text-white active:scale-75 transition-transform">
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* テキスト選択ツールバー */}
       {selectedEl && (
         <TextStyleBar
           el={selectedEl}
@@ -447,7 +611,7 @@ export default function AnswerCanvas({ profile, elements }: Props) {
         />
       )}
 
-      {/* 入力シート */}
+      {/* テキスト入力シート */}
       {sheetOpen && (
         <TextInputSheet
           hint={sheetHint}
