@@ -21,10 +21,6 @@ interface Props {
   onDragEnd?: () => void
   // question block tap (answer mode only)
   onTapQuestion?: (id: string) => void
-  // template_card/visual_card inline answer (keep for structured cards)
-  onTapCard?: (id: string) => void
-  answerEditingId?: string | null
-  onAnswerChange?: (id: string, value: string | Record<string, string>) => void
   onCanvasTap?: () => void
 }
 
@@ -103,7 +99,7 @@ type GestureState = {
 export default function ProfileCanvas({
   background, elements, editMode, answerMode, fullScreen, contained,
   selectedId, onSelect, onUpdate, onDragStart, onDragEnd,
-  onTapQuestion, onTapCard, answerEditingId, onAnswerChange, onCanvasTap,
+  onTapQuestion, onCanvasTap,
 }: Props) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const elRefs    = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -263,7 +259,6 @@ export default function ProfileCanvas({
       >
         {elements.map(el => {
           const p = el.position as PctPosition
-          const isThisEditing = answerEditingId === el.id
           const draggable = isDraggable(el)
           const isSelected = selectedId === el.id
 
@@ -277,12 +272,11 @@ export default function ProfileCanvas({
                 top:  `${p.yPct}%`,
                 transform: `rotate(${el.transform.rotation}deg) scale(${el.transform.scale})`,
                 transformOrigin: 'center',
-                zIndex: el.z_index + (isSelected ? 100 : 0) + (isThisEditing ? 200 : 0),
+                zIndex: el.z_index + (isSelected ? 100 : 0),
                 cursor: draggable ? (isSelected ? 'grabbing' : 'grab') : (answerMode && el.type === 'question' ? 'pointer' : 'default'),
                 userSelect: 'none',
                 touchAction: 'none',
                 WebkitUserSelect: 'none',
-                // Selection ring for text_element in answer mode
                 outline: (answerMode && el.type === 'text_element' && isSelected)
                   ? '2px solid rgba(99,102,241,0.8)' : 'none',
                 borderRadius: 4,
@@ -296,7 +290,6 @@ export default function ProfileCanvas({
                 if (dragMoved.current) return // was a drag, not a tap
                 if (answerMode) {
                   if (el.type === 'question') { onTapQuestion?.(el.id); return }
-                  if (el.type === 'template_card' || el.type === 'visual_card') { onTapCard?.(el.id); return }
                   if (el.type === 'text_element') { onSelect?.(isSelected ? null : el.id); return }
                 }
               }}
@@ -331,19 +324,7 @@ export default function ProfileCanvas({
                 const c = el.content as { templateId: string; templateData?: Template; answers: Record<string, string> }
                 const tmpl = TEMPLATES.find(t => t.id === c.templateId) ?? c.templateData
                 if (!tmpl) return null
-                return (
-                  <div style={{ outline: answerMode && !isThisEditing ? '2px dashed rgba(168,85,247,0.4)' : 'none', borderRadius: 16 }}>
-                    <TemplateCard
-                      template={tmpl}
-                      answers={c.answers}
-                      isEditing={isThisEditing}
-                      onAnswerChange={(key, val) => {
-                        const prev = c.answers ?? {}
-                        onAnswerChange?.(el.id, { ...prev, [key]: val })
-                      }}
-                    />
-                  </div>
-                )
+                return <TemplateCard template={tmpl} answers={c.answers} />
               })()}
 
               {/* ── VisualCard ── */}
@@ -351,19 +332,11 @@ export default function ProfileCanvas({
                 const c = el.content as { template: VCardTemplate; answers: Record<string, string> }
                 if (!c.template) return null
                 return (
-                  <div style={{ outline: answerMode && !isThisEditing ? '2px dashed rgba(99,102,241,0.4)' : 'none', borderRadius: 16 }}>
-                    <VisualCard
-                      template={c.template}
-                      answers={c.answers ?? {}}
-                      scale={0.5}
-                      answerMode={answerMode}
-                      answerEditingId={isThisEditing ? '__all__' : null}
-                      onAnswerChange={(key, val) => {
-                        const prev = c.answers ?? {}
-                        onAnswerChange?.(el.id, { ...prev, [key]: val })
-                      }}
-                    />
-                  </div>
+                  <VisualCard
+                    template={c.template}
+                    answers={c.answers ?? {}}
+                    scale={0.5}
+                  />
                 )
               })()}
             </div>

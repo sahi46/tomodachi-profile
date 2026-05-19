@@ -261,8 +261,6 @@ function TextStyleBar({
 // ── Main ─────────────────────────────────────────────────────────
 export default function AnswerCanvas({ profile, elements }: Props) {
   const [textEls, setTextEls]         = useState<TextElementData[]>([])
-  const [cardAnswerMap, setCardAnswerMap] = useState<Record<string, Record<string, string>>>({})
-  const [cardEditingId, setCardEditingId] = useState<string | null>(null)
 
   // input sheet state
   const [sheetOpen, setSheetOpen]     = useState(false)
@@ -281,17 +279,7 @@ export default function AnswerCanvas({ profile, elements }: Props) {
 
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
-  // combine template elements with text elements
-  const allElements: CanvasElement[] = [
-    ...elements.map(el => {
-      if (el.type === 'template_card') {
-        const c = el.content as { templateId: string; answers: Record<string, string> }
-        return { ...el, content: { ...c, answers: cardAnswerMap[el.id] ?? {} } }
-      }
-      return el
-    }),
-    ...textEls.map(toCanvasElement),
-  ]
+  const allElements: CanvasElement[] = [...elements, ...textEls.map(toCanvasElement)]
 
   // tap a QuestionBlock → open text sheet nearby
   const openSheetNearQuestion = useCallback((elId: string) => {
@@ -363,13 +351,11 @@ export default function AnswerCanvas({ profile, elements }: Props) {
     setSubmitting(true)
     setConfirmOpen(false)
     setSelectedId(null)
-    setCardEditingId(null)
     await supabase.from('responses').insert({
       profile_id: profile.id,
       answers: {
         v: 2,
         textElements: textEls,
-        cardAnswers: cardAnswerMap,
       },
     })
     setSubmitted(true)
@@ -398,15 +384,10 @@ export default function AnswerCanvas({ profile, elements }: Props) {
           elements={allElements}
           answerMode
           selectedId={selectedId}
-          onSelect={id => { setSelectedId(id); setCardEditingId(null) }}
+          onSelect={setSelectedId}
           onUpdate={updateTextEl}
           onTapQuestion={openSheetNearQuestion}
-          onTapCard={id => setCardEditingId(prev => prev === id ? null : id)}
-          answerEditingId={cardEditingId}
-          onAnswerChange={(id, val) => {
-            if (typeof val === 'object') setCardAnswerMap(prev => ({ ...prev, [id]: val as Record<string, string> }))
-          }}
-          onCanvasTap={() => { setSelectedId(null); setCardEditingId(null) }}
+          onCanvasTap={() => setSelectedId(null)}
         />
 
         {/* 文字を追加ボタン（左下） */}
