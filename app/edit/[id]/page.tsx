@@ -14,7 +14,7 @@ import { TEMPLATE_PACKS } from '@/lib/template-packs'
 import { VCardTemplate, getVisualTemplates } from '@/lib/visual-card'
 import { v4 as uuidv4 } from 'uuid'
 
-type SheetType = 'sticker' | 'question' | 'background' | 'template' | 'title' | null
+type SheetType = 'sticker' | 'background' | 'template' | 'title' | null
 
 const getCustomStickers    = (): string[]   => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_stickers')   ?? '[]' : '[]')
 const getCustomTemplates   = (): Template[] => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_templates')  ?? '[]' : '[]')
@@ -25,22 +25,6 @@ const EMOJI_LIST = [
   '😊','🌸','⭐','💕','🎀','🌈','🍓','🐱','🌙','💫',
   '🦋','🍀','🎵','💖','🌺','🐰','✨','🎠','🍡','🌻',
   '🫶','🥹','💝','🌷','🎪','🩷','🩵','🌟','🎶','🍭',
-]
-
-const QUESTION_PRESETS = [
-  { q: '名前',              design: 'pink'   },
-  { q: 'ニックネーム',     design: 'purple' },
-  { q: '誕生日',           design: 'mint'   },
-  { q: '血液型',           design: 'yellow' },
-  { q: '好きな食べ物',     design: 'pink'   },
-  { q: '嫌いな食べ物',     design: 'purple' },
-  { q: '趣味',             design: 'mint'   },
-  { q: '好きな色',         design: 'yellow' },
-  { q: '好きな音楽',       design: 'blue'   },
-  { q: '好きなアーティスト', design: 'pink' },
-  { q: 'マイブーム',       design: 'purple' },
-  { q: '将来の夢',         design: 'mint'   },
-  { q: 'ひとこと',         design: 'yellow' },
 ]
 
 const GRADIENTS = [
@@ -69,13 +53,6 @@ const SIDE_TOOLS: { key: SheetType; svg: React.ReactNode }[] = [
     </svg>,
   },
   {
-    key: 'question',
-    svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-      <rect x="3" y="3" width="18" height="18" rx="4"/>
-      <path d="M9 9a3 3 0 0 1 6 0c0 2-3 3-3 3M12 17h.01"/>
-    </svg>,
-  },
-  {
     key: 'background',
     svg: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
       <circle cx="12" cy="12" r="10"/>
@@ -98,7 +75,6 @@ export default function EditPage() {
   const [elements, setElements]     = useState<CanvasElement[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sheet, setSheet]           = useState<SheetType>(null)
-  const [customQ, setCustomQ]       = useState('')
   const [myStickers,        setMyStickers]        = useState<string[]>([])
   const [myTemplates,       setMyTemplates]       = useState<Template[]>([])
   const [myVisualTemplates, setMyVisualTemplates] = useState<VCardTemplate[]>([])
@@ -174,19 +150,6 @@ export default function EditPage() {
       id: uuidv4(), profile_id: id, type: 'visual_card',
       content: { template: tmpl, answers: {} }, style: {},
       position: { xPct: 5 + Math.random() * 20, yPct: 15 + Math.random() * 25 },
-      transform: { rotation: 0, scale: 1 },
-      z_index: elements.length,
-    }
-    setElements(prev => [...prev, el])
-    setSelectedId(el.id); setSheet(null)
-    await supabase.from('elements').upsert(el)
-  }
-
-  const addQuestion = async (question: string, design: string) => {
-    const el: CanvasElement = {
-      id: uuidv4(), profile_id: id, type: 'question',
-      content: { question, answer: '' }, style: { design },
-      position: { xPct: 8 + Math.random() * 35, yPct: 20 + Math.random() * 45 },
       transform: { rotation: 0, scale: 1 },
       z_index: elements.length,
     }
@@ -497,29 +460,6 @@ export default function EditPage() {
                     </div>
                   </div>
                   <p className="text-xs font-bold text-gray-700">{tmpl.title}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </BottomSheet>
-
-      <BottomSheet open={sheet === 'question'} onClose={() => setSheet(null)} title="質問カード">
-        <div className="space-y-3 py-2">
-          <div className="flex gap-2">
-            <input type="text" placeholder="質問を自由入力..." value={customQ} onChange={e => setCustomQ(e.target.value)}
-              className="flex-1 text-sm bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:border-pink-300 transition-colors" />
-            <button onClick={() => { if (customQ.trim()) { addQuestion(customQ.trim(), 'pink'); setCustomQ('') } }}
-              disabled={!customQ.trim()} className="px-4 bg-gray-900 text-white text-sm font-bold rounded-xl disabled:opacity-30 active:scale-95">
-              追加
-            </button>
-          </div>
-          <div>
-            <div className="grid grid-cols-2 gap-2">
-              {QUESTION_PRESETS.map(({ q, design }) => (
-                <button key={q} onClick={() => addQuestion(q, design)}
-                  className="text-left text-sm bg-gray-50 rounded-xl px-4 py-3 font-medium text-gray-700 active:scale-95 active:bg-gray-100 transition-all">
-                  {q}
                 </button>
               ))}
             </div>

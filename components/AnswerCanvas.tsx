@@ -31,7 +31,7 @@ const ANSWER_COLORS = [
 ]
 const FONT_SIZES = [14, 16, 18, 20, 24, 28, 32, 40]
 
-type ActiveTool = 'text' | 'stamp' | 'question' | 'shape'
+type ActiveTool = 'text' | 'stamp' | 'shape'
 
 const STAMPS = [
   '😊','😂','🥹','😍','😎','🥳','😭','😱',
@@ -61,13 +61,6 @@ function StampIcon() {
       <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
       <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="3"/>
       <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="3"/>
-    </svg>
-  )
-}
-function QuestionIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
     </svg>
   )
 }
@@ -329,25 +322,7 @@ export default function AnswerCanvas({ profile, elements }: Props) {
   const inputRef = useRef<HTMLTextAreaElement | null>(null)
 
   const allElements: CanvasElement[] = [...elements, ...textEls.map(toCanvasElement)]
-  const questionEls = elements.filter(el => el.type === 'question')
 
-  // tap a QuestionBlock → open text sheet nearby
-  const openSheetNearQuestion = useCallback((elId: string) => {
-    const el = elements.find(e => e.id === elId)
-    if (!el) return
-    const q = el.content as { question: string }
-    setPendingPos({
-      xPct: Math.min(75, (el.position as PctPosition).xPct + 8 + Math.random() * 10),
-      yPct: Math.min(85, (el.position as PctPosition).yPct + 12 + Math.random() * 8),
-    })
-    setSheetHint(`「${q.question}」について`)
-    setInputText('')
-    setSelectedId(null)
-    setSheetOpen(true)
-    setTimeout(() => inputRef.current?.focus(), 80)
-  }, [elements])
-
-  // "文字を追加" button — no hint, random position
   const openSheetFree = () => {
     setPendingPos({
       xPct: 15 + Math.random() * 50,
@@ -449,10 +424,9 @@ export default function AnswerCanvas({ profile, elements }: Props) {
   }
 
   const TOOLS: { id: ActiveTool; label: string; icon: React.ReactNode }[] = [
-    { id: 'text',     label: 'テキスト', icon: <TextIcon /> },
-    { id: 'stamp',    label: 'スタンプ', icon: <StampIcon /> },
-    { id: 'question', label: '質問',     icon: <QuestionIcon /> },
-    { id: 'shape',    label: '図形',     icon: <ShapeIcon /> },
+    { id: 'text',  label: 'テキスト', icon: <TextIcon /> },
+    { id: 'stamp', label: 'スタンプ', icon: <StampIcon /> },
+    { id: 'shape', label: '図形',     icon: <ShapeIcon /> },
   ]
 
   return (
@@ -488,7 +462,6 @@ export default function AnswerCanvas({ profile, elements }: Props) {
           selectedId={selectedId}
           onSelect={setSelectedId}
           onUpdate={updateTextEl}
-          onTapQuestion={openSheetNearQuestion}
           onCanvasTap={() => { setSelectedId(null); setActiveTool(null) }}
         />
       </div>
@@ -539,40 +512,6 @@ export default function AnswerCanvas({ profile, elements }: Props) {
                 </button>
               ))}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 質問ピッカー */}
-      {activeTool === 'question' && (
-        <div className="fixed inset-0 z-40 flex items-end" onClick={() => setActiveTool(null)}>
-          <div
-            className="w-full bg-[#1f2937] rounded-t-3xl"
-            style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 16px)' }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-white/20" />
-            </div>
-            <p className="px-5 py-2 text-xs font-black text-white/40">質問に答える</p>
-            {questionEls.length === 0 ? (
-              <p className="px-5 pb-5 text-sm text-white/30">質問がありません</p>
-            ) : (
-              <div className="px-4 pb-3 space-y-2 max-h-64 overflow-y-auto">
-                {questionEls.map(el => (
-                  <button
-                    key={el.id}
-                    onClick={() => { openSheetNearQuestion(el.id); setActiveTool(null) }}
-                    className="w-full text-left px-4 py-3 rounded-2xl active:scale-[0.97] transition-transform"
-                    style={{ backgroundColor: 'rgba(255,255,255,0.07)' }}
-                  >
-                    <p className="text-white text-sm font-bold">
-                      {(el.content as { question: string }).question}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}
