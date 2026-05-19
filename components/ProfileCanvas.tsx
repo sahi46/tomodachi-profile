@@ -41,9 +41,9 @@ const CARD_DESIGNS: Record<string, { border: string; label: string }> = {
   blue:   { border: '#93c5fd', label: '#3b82f6' },
 }
 
-// ── QuestionBlock: pure decoration, no input ever ────────────────
-function QuestionBlock({ question, design, answerMode, answered }: {
-  question: string; design: string; answerMode?: boolean; answered?: boolean
+// ── QuestionBlock: visual decoration only ────────────────────────
+function QuestionBlock({ question, design }: {
+  question: string; design: string
 }) {
   const c = CARD_DESIGNS[design] ?? CARD_DESIGNS.pink
   return (
@@ -54,17 +54,10 @@ function QuestionBlock({ question, design, answerMode, answered }: {
       borderLeft: `4px solid ${c.border}`,
       padding: '10px 12px',
       boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-      outline: answerMode && !answered ? `2px dashed ${c.border}` : 'none',
-      outlineOffset: 2,
     }}>
       <p style={{ fontSize: 9, fontWeight: 700, color: c.label, letterSpacing: '0.04em' }}>
         {question}
       </p>
-      {answerMode && !answered && (
-        <p style={{ fontSize: 9, color: 'rgba(0,0,0,0.3)', marginTop: 4, fontStyle: 'italic' }}>
-          タップして回答 →
-        </p>
-      )}
     </div>
   )
 }
@@ -127,9 +120,9 @@ export default function ProfileCanvas({
 
   // An element participates in drag/gesture if:
   // - edit mode (all elements)
-  // - answer mode AND it's an answer_text element
+  // - answer mode AND it's an text_element element
   const isDraggable = (el: CanvasElement) =>
-    editMode === true || (answerMode === true && el.type === 'answer_text')
+    editMode === true || (answerMode === true && el.type === 'text_element')
 
   const handlePointerDown = useCallback((e: React.PointerEvent, el: CanvasElement) => {
     if (!isDraggable(el)) return
@@ -289,8 +282,8 @@ export default function ProfileCanvas({
                 userSelect: 'none',
                 touchAction: 'none',
                 WebkitUserSelect: 'none',
-                // Selection ring for answer_text in answer mode
-                outline: (answerMode && el.type === 'answer_text' && isSelected)
+                // Selection ring for text_element in answer mode
+                outline: (answerMode && el.type === 'text_element' && isSelected)
                   ? '2px solid rgba(99,102,241,0.8)' : 'none',
                 borderRadius: 4,
               }}
@@ -304,7 +297,7 @@ export default function ProfileCanvas({
                 if (answerMode) {
                   if (el.type === 'question') { onTapQuestion?.(el.id); return }
                   if (el.type === 'template_card' || el.type === 'visual_card') { onTapCard?.(el.id); return }
-                  if (el.type === 'answer_text') { onSelect?.(isSelected ? null : el.id); return }
+                  if (el.type === 'text_element') { onSelect?.(isSelected ? null : el.id); return }
                 }
               }}
             >
@@ -320,13 +313,11 @@ export default function ProfileCanvas({
                 <QuestionBlock
                   question={(el.content as { question: string }).question}
                   design={el.style.design ?? 'pink'}
-                  answerMode={answerMode}
-                  answered={false}
                 />
               )}
 
-              {/* ── AnswerText ── */}
-              {el.type === 'answer_text' && (
+              {/* ── TextElement ── */}
+              {el.type === 'text_element' && (
                 <AnswerTextEl
                   text={(el.content as { text: string }).text}
                   color={el.style.color ?? '#111827'}

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Profile, CanvasElement } from '@/types'
 import ProfileCanvas from '@/components/ProfileCanvas'
-import { AnswerElementData } from '@/components/AnswerCanvas'
+import { TextElementData } from '@/components/AnswerCanvas'
 
 interface Response {
   id: string
@@ -51,14 +51,14 @@ function buildPageElements(elements: CanvasElement[], answers: Record<string, un
 
   if (!isV2) return templateEls
 
-  const answerEls = ((answers.answerElements ?? []) as AnswerElementData[]).map(a => ({
-    id: a.id,
+  const answerEls = ((answers.textElements ?? []) as TextElementData[]).map(t => ({
+    id: t.id,
     profile_id: '',
-    type: 'answer_text' as const,
-    content: { text: a.text, questionId: a.questionId },
-    style: { color: a.color, fontSize: String(a.fontSize), fontBold: String(a.fontBold) },
-    position: { xPct: a.xPct, yPct: a.yPct },
-    transform: { rotation: a.rotation, scale: a.scale },
+    type: 'text_element' as const,
+    content: { text: t.text },
+    style: { color: t.color, fontSize: String(t.fontSize), fontBold: String(t.fontBold) },
+    position: { xPct: t.xPct, yPct: t.yPct },
+    transform: { rotation: t.rotation, scale: t.scale },
     z_index: 50,
   }))
 

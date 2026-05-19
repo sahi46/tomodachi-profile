@@ -2,30 +2,26 @@ import { notFound } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import ProfileCanvas from '@/components/ProfileCanvas'
 import { CanvasElement } from '@/types'
-import { AnswerElementData } from '@/components/AnswerCanvas'
-import { v4 as uuidv4 } from 'uuid'
+import { TextElementData } from '@/components/AnswerCanvas'
 
 interface Props {
   params: Promise<{ id: string }>
 }
 
-function buildAnswerElements(answers: Record<string, unknown>): CanvasElement[] {
-  // v2 format
+function buildTextElements(answers: Record<string, unknown>): CanvasElement[] {
   if (answers.v === 2) {
-    const els = (answers.answerElements ?? []) as AnswerElementData[]
-    return els.map(a => ({
-      id: a.id,
+    const els = (answers.textElements ?? []) as TextElementData[]
+    return els.map(t => ({
+      id: t.id,
       profile_id: '',
-      type: 'answer_text' as const,
-      content: { text: a.text, questionId: a.questionId },
-      style: { color: a.color, fontSize: String(a.fontSize), fontBold: String(a.fontBold) },
-      position: { xPct: a.xPct, yPct: a.yPct },
-      transform: { rotation: a.rotation, scale: a.scale },
+      type: 'text_element' as const,
+      content: { text: t.text },
+      style: { color: t.color, fontSize: String(t.fontSize), fontBold: String(t.fontBold) },
+      position: { xPct: t.xPct, yPct: t.yPct },
+      transform: { rotation: t.rotation, scale: t.scale },
       z_index: 50,
     }))
   }
-
-  // v1 legacy: inject answers back into question elements (handled at call site)
   return []
 }
 
@@ -62,8 +58,7 @@ export default async function ResponseViewPage({ params }: Props) {
     ? (elements ?? []) as CanvasElement[]
     : applyLegacyAnswers((elements ?? []) as CanvasElement[], answers)
 
-  const answerEls = buildAnswerElements(answers)
-  const allElements = [...templateEls, ...answerEls]
+  const allElements = [...templateEls, ...buildTextElements(answers)]
 
   const fmtDate = (s: string) => {
     const d = new Date(s)
@@ -77,13 +72,7 @@ export default async function ResponseViewPage({ params }: Props) {
           {profile.title} · {fmtDate(response.created_at)} に届いた回答
         </p>
       </div>
-
-      <ProfileCanvas
-        background={profile.background}
-        elements={allElements}
-        editMode={false}
-      />
-
+      <ProfileCanvas background={profile.background} elements={allElements} editMode={false} />
       <p className="text-center text-white/15 text-xs py-6">ともプロ</p>
     </main>
   )
