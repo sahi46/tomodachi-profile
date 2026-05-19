@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Profile, CanvasElement } from '@/types'
 import ProfileCanvas from '@/components/ProfileCanvas'
+import { AnswerElementData } from '@/components/AnswerCanvas'
 
 interface Response {
   id: string
@@ -33,16 +34,35 @@ const TIMINGS: Record<string, string> = {
   bookEnterBwd: 'ease-out',
 }
 
-function applyAnswers(elements: CanvasElement[], answers: Record<string, unknown>): CanvasElement[] {
-  return elements.map(el => {
-    if (el.type === 'question') {
-      return { ...el, content: { ...(el.content as { question: string; answer: string }), answer: (answers[el.id] as string) ?? '' } }
-    }
-    if (el.type === 'template_card') {
-      return { ...el, content: { ...(el.content as { templateId: string; answers: Record<string, string> }), answers: (answers[el.id] as Record<string, string>) ?? {} } }
-    }
-    return el
-  })
+function buildPageElements(elements: CanvasElement[], answers: Record<string, unknown>): CanvasElement[] {
+  const isV2 = answers.v === 2
+
+  const templateEls = isV2
+    ? elements
+    : elements.map(el => {
+        if (el.type === 'question') {
+          return { ...el, content: { ...(el.content as { question: string; answer: string }), answer: (answers[el.id] as string) ?? '' } }
+        }
+        if (el.type === 'template_card') {
+          return { ...el, content: { ...(el.content as { templateId: string; answers: Record<string, string> }), answers: (answers[el.id] as Record<string, string>) ?? {} } }
+        }
+        return el
+      })
+
+  if (!isV2) return templateEls
+
+  const answerEls = ((answers.answerElements ?? []) as AnswerElementData[]).map(a => ({
+    id: a.id,
+    profile_id: '',
+    type: 'answer_text' as const,
+    content: { text: a.text, questionId: a.questionId },
+    style: { color: a.color, fontSize: String(a.fontSize), fontBold: String(a.fontBold) },
+    position: { xPct: a.xPct, yPct: a.yPct },
+    transform: { rotation: a.rotation, scale: a.scale },
+    z_index: 50,
+  }))
+
+  return [...templateEls, ...answerEls]
 }
 
 export default function BookReader({ profile, elements, responses }: Props) {
@@ -147,7 +167,7 @@ export default function BookReader({ profile, elements, responses }: Props) {
         onTouchEnd={onTouchEnd}
       >
         {pages.map(({ index, animName, zIndex, key }) => {
-          const answered = applyAnswers(elements, responses[index].answers)
+          const answered = buildPageElements(elements, responses[index].answers)
           const origin   = animName ? ORIGINS[animName] : 'center'
           const timing   = animName ? TIMINGS[animName] : 'linear'
           return (
