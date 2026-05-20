@@ -23,8 +23,7 @@ function ProfileThumb({ background }: { background: Background }) {
 
 const ACCENT = '#d946ef'
 
-
-type TabKey = 'library' | 'created' | 'settings'
+type TabKey = 'library' | 'settings'
 
 const TABS: Array<{ key: TabKey; label: string; icon: (a: boolean) => React.ReactNode }> = [
   {
@@ -34,18 +33,6 @@ const TABS: Array<{ key: TabKey; label: string; icon: (a: boolean) => React.Reac
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={a ? 2.2 : 1.6} strokeLinecap="round">
         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
         <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
-      </svg>
-    ),
-  },
-  {
-    key: 'created',
-    label: 'つくった',
-    icon: (a) => (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={a ? 2.2 : 1.6} strokeLinecap="round">
-        <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-        <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-        <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-        <rect x="14" y="14" width="7" height="7" rx="1.5"/>
       </svg>
     ),
   },
@@ -61,35 +48,29 @@ const TABS: Array<{ key: TabKey; label: string; icon: (a: boolean) => React.Reac
   },
 ]
 
-const getTemplateIds = (): string[] => JSON.parse(localStorage.getItem('tomo_profile_ids') || '[]')
-const getBookIds     = (): string[] => JSON.parse(localStorage.getItem('tomo_book_ids')    || '[]')
+const getBookIds = (): string[] => JSON.parse(localStorage.getItem('tomo_book_ids') || '[]')
 
 export default function LibraryPage() {
   const router = useRouter()
-  const [activeTab, setActiveTab]       = useState<TabKey>('library')
-  const [templates, setTemplates]       = useState<Profile[]>([])
-  const [books, setBooks]               = useState<Profile[]>([])
-  const [responses, setResponses]       = useState<Response[]>([])
-  const [loading, setLoading]           = useState(false)
+  const [activeTab, setActiveTab]                   = useState<TabKey>('library')
+  const [books, setBooks]                           = useState<Profile[]>([])
+  const [systemTemplates, setSystemTemplates]       = useState<Profile[]>([])
+  const [responses, setResponses]                   = useState<Response[]>([])
+  const [loading, setLoading]                       = useState(false)
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
+  const [menuCopied, setMenuCopied]                 = useState(false)
 
-  // ライブラリ用シート
-  const [pickerOpen, setPickerOpen]     = useState(false)
-  const [shareProfile, setShareProfile] = useState<Profile | null>(null)
-  const [urlCopied, setUrlCopied]       = useState(false)
-  const [menuCopied, setMenuCopied]     = useState(false)
-
-  // 長押し削除メニュー
-  const [longPressMenu, setLongPressMenu] = useState<{ profile: Profile; type: 'template' | 'book' } | null>(null)
+  const [longPressMenu, setLongPressMenu] = useState<{ profile: Profile } | null>(null)
   const lpTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lpFired = useRef(false)
   const lpStart = useRef({ x: 0, y: 0 })
 
-  const onLongPressStart = (e: React.PointerEvent, profile: Profile, type: 'template' | 'book') => {
+  const onLongPressStart = (e: React.PointerEvent, profile: Profile) => {
     lpFired.current = false
     lpStart.current = { x: e.clientX, y: e.clientY }
     lpTimer.current = setTimeout(() => {
       lpFired.current = true
-      setLongPressMenu({ profile, type })
+      setLongPressMenu({ profile })
       if (navigator.vibrate) navigator.vibrate(40)
     }, 500)
   }
@@ -104,12 +85,6 @@ export default function LibraryPage() {
     action()
   }
 
-  const deleteTemplate = (profile: Profile) => {
-    const ids = getTemplateIds().filter(id => id !== profile.id)
-    localStorage.setItem('tomo_profile_ids', JSON.stringify(ids))
-    setTemplates(prev => prev.filter(p => p.id !== profile.id))
-    setLongPressMenu(null)
-  }
   const deleteBook = (profile: Profile) => {
     const ids = getBookIds().filter(id => id !== profile.id)
     localStorage.setItem('tomo_book_ids', JSON.stringify(ids))
@@ -119,15 +94,19 @@ export default function LibraryPage() {
 
   useEffect(() => {
     const load = async () => {
-      const templateIds = getTemplateIds()
-      const bookIds     = getBookIds()
-      const allIds      = [...new Set([...templateIds, ...bookIds])]
-      if (allIds.length === 0) return
+      const bookIds = getBookIds()
 
-      const { data: pData } = await supabase.from('profiles').select('*').in('id', allIds)
-      if (pData) {
-        setTemplates(templateIds.map(id => pData.find(p => p.id === id)!).filter(Boolean))
-        setBooks(bookIds.map(id => pData.find(p => p.id === id)!).filter(Boolean))
+      const [{ data: sysData }, bookResult] = await Promise.all([
+        supabase.from('profiles').select('*').eq('is_system', true).order('created_at', { ascending: false }),
+        bookIds.length > 0
+          ? supabase.from('profiles').select('*').in('id', bookIds)
+          : Promise.resolve({ data: [] as Profile[] }),
+      ])
+
+      if (sysData) setSystemTemplates(sysData)
+      if (bookResult.data) {
+        const d = bookResult.data as Profile[]
+        setBooks(bookIds.map(id => d.find(p => p.id === id)!).filter(Boolean))
       }
 
       if (bookIds.length > 0) {
@@ -145,41 +124,34 @@ export default function LibraryPage() {
     return counts
   }, [responses])
 
-  const publishAsBook = (p: Profile) => {
-    const ids = getBookIds()
-    if (!ids.includes(p.id)) {
-      localStorage.setItem('tomo_book_ids', JSON.stringify([p.id, ...ids]))
-      setBooks(prev => [p, ...prev])
-    }
-    setPickerOpen(false)
-    setShareProfile(p)
-  }
-
-  const copyShareUrl = async () => {
-    if (!shareProfile) return
-    const url = `${window.location.origin}/p/${shareProfile.slug}`
-    await navigator.clipboard.writeText(url).catch(() => {})
-    setUrlCopied(true)
-    setTimeout(() => setUrlCopied(false), 2000)
-  }
-
-  const createTemplate = async () => {
+  const selectTemplate = async (template: Profile) => {
     setLoading(true)
+    setTemplatePickerOpen(false)
     const slug = Math.random().toString(36).slice(2, 10)
-    const { data } = await supabase.from('profiles').insert({
+    const { data: newProfile } = await supabase.from('profiles').insert({
       slug,
-      title: 'わたしのプロフィール',
-      background: { type: 'gradient', from: '#ffd6e7', to: '#c9b8ff', direction: '135deg' },
+      title: template.title,
+      background: template.background,
     }).select().single()
-    if (data) {
-      const ids = getTemplateIds()
-      localStorage.setItem('tomo_profile_ids', JSON.stringify([data.id, ...ids]))
-      router.push(`/edit/${data.id}`)
+    if (!newProfile) { setLoading(false); return }
+    const { data: sourceElements } = await supabase
+      .from('elements').select('*').eq('profile_id', template.id)
+    if (sourceElements?.length) {
+      const newElements = sourceElements.map((el: Record<string, unknown>) => ({
+        ...el,
+        id: crypto.randomUUID(),
+        profile_id: newProfile.id,
+      }))
+      await supabase.from('elements').insert(newElements)
     }
+    const ids = getBookIds()
+    localStorage.setItem('tomo_book_ids', JSON.stringify([newProfile.id, ...ids]))
+    setBooks(prev => [newProfile, ...prev])
+    router.push(`/edit/${newProfile.id}`)
     setLoading(false)
   }
 
-  const tabTitle = { library: 'ライブラリ', created: 'つくった', settings: 'せってい' }
+  const tabTitle: Record<TabKey, string> = { library: 'ライブラリ', settings: 'せってい' }
 
   return (
     <div className="min-h-screen flex flex-col bg-white" style={{ userSelect: 'none' }}>
@@ -203,7 +175,7 @@ export default function LibraryPage() {
                   <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
                 </svg>
                 <p className="text-sm font-medium">まだ本がありません</p>
-                <p className="text-xs leading-relaxed">右下の + で雛形を選んでシェアすると<br />ここに本が追加されます</p>
+                <p className="text-xs leading-relaxed">右下の + でテンプレートを選んで<br />プロフィール本を作ってみよう</p>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-3">
@@ -212,7 +184,7 @@ export default function LibraryPage() {
                   return (
                     <button
                       key={p.id}
-                      onPointerDown={e => onLongPressStart(e, p, 'book')}
+                      onPointerDown={e => onLongPressStart(e, p)}
                       onPointerMove={onLongPressMove}
                       onPointerUp={onLongPressEnd}
                       onPointerCancel={onLongPressEnd}
@@ -228,49 +200,11 @@ export default function LibraryPage() {
                       )}
                       <div className="absolute bottom-0 left-0 right-0 p-2" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.5), transparent)' }}>
                         <p className="text-white text-[8px] font-bold truncate">{p.title}</p>
-                        <p className="text-white/60 text-[7px]">{count > 0 ? `${count}件の回答` : '回答なし'}</p>
+                        <p className="text-white/60 text-[7px]">{count > 0 ? `${count}ページ` : '0ページ'}</p>
                       </div>
                     </button>
                   )
                 })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── つくったタブ ── */}
-        {activeTab === 'created' && (
-          <div className="px-4 pt-4">
-            {templates.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-52 gap-2 text-gray-400">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-                  <rect x="3" y="3" width="7" height="7" rx="1.5"/>
-                  <rect x="14" y="3" width="7" height="7" rx="1.5"/>
-                  <rect x="3" y="14" width="7" height="7" rx="1.5"/>
-                  <rect x="14" y="14" width="7" height="7" rx="1.5"/>
-                </svg>
-                <p className="text-sm font-medium">まだ雛形がありません</p>
-                <p className="text-xs">右下の + から作ってみよう</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-3">
-                {templates.map(p => (
-                  <button
-                    key={p.id}
-                    onPointerDown={e => onLongPressStart(e, p, 'template')}
-                    onPointerMove={onLongPressMove}
-                    onPointerUp={onLongPressEnd}
-                    onPointerCancel={onLongPressEnd}
-                    onClick={() => onCardClick(() => router.push(`/edit/${p.id}`))}
-                    className="relative rounded-2xl overflow-hidden shadow-sm active:scale-95 transition-transform bg-gray-100"
-                    style={{ aspectRatio: '9/16' }}
-                  >
-                    <ProfileThumb background={p.background} />
-                    <div className="absolute bottom-0 left-0 right-0 p-2" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.45), transparent)' }}>
-                      <p className="text-white text-[8px] font-bold truncate">{p.title}</p>
-                    </div>
-                  </button>
-                ))}
               </div>
             )}
           </div>
@@ -284,10 +218,10 @@ export default function LibraryPage() {
         )}
       </div>
 
-      {/* FAB (ライブラリ・つくったのみ表示) */}
-      {(activeTab === 'library' || activeTab === 'created') && (
+      {/* FAB */}
+      {activeTab === 'library' && (
         <button
-          onClick={activeTab === 'library' ? () => setPickerOpen(true) : createTemplate}
+          onClick={() => setTemplatePickerOpen(true)}
           disabled={loading}
           className="fixed right-5 z-50 w-14 h-14 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform disabled:opacity-60"
           style={{ bottom: 100, backgroundColor: ACCENT, boxShadow: `0 8px 24px ${ACCENT}55` }}
@@ -324,19 +258,19 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      {/* 雛形ピッカーシート */}
-      <BottomSheet open={pickerOpen} onClose={() => setPickerOpen(false)} title="雛形を選んでシェア">
-        {templates.length === 0 ? (
+      {/* テンプレート選択シート */}
+      <BottomSheet open={templatePickerOpen} onClose={() => setTemplatePickerOpen(false)} title="テンプレートを選ぶ">
+        {systemTemplates.length === 0 ? (
           <div className="flex flex-col items-center gap-2 py-8 text-gray-400 text-center">
-            <p className="text-sm font-medium">雛形がありません</p>
-            <p className="text-xs">「つくった」タブでまず雛形を作ってね</p>
+            <p className="text-sm font-medium">テンプレートがありません</p>
+            <p className="text-xs">管理者がテンプレートを準備中です</p>
           </div>
         ) : (
           <div className="space-y-2 py-2">
-            {templates.map(p => (
+            {systemTemplates.map(p => (
               <button
                 key={p.id}
-                onClick={() => publishAsBook(p)}
+                onClick={() => selectTemplate(p)}
                 className="w-full flex items-center gap-3 bg-gray-50 rounded-2xl p-3 active:scale-[0.98] transition-transform text-left"
               >
                 <div className="relative rounded-xl overflow-hidden shrink-0 shadow-sm" style={{ width: 36, height: 64 }}>
@@ -346,29 +280,10 @@ export default function LibraryPage() {
                   <p className="text-sm font-bold text-gray-800 truncate">{p.title}</p>
                 </div>
                 <span className="text-xs font-black px-3 py-1.5 rounded-full text-white shrink-0" style={{ backgroundColor: ACCENT }}>
-                  シェア
+                  選ぶ
                 </span>
               </button>
             ))}
-          </div>
-        )}
-      </BottomSheet>
-
-      {/* シェアURLシート */}
-      <BottomSheet open={!!shareProfile} onClose={() => { setShareProfile(null); setUrlCopied(false) }} title="シェア">
-        {shareProfile && (
-          <div className="space-y-4 py-2">
-            <p className="text-xs text-gray-500 text-center">このURLを友達に送ってね</p>
-            <div className="bg-gray-50 rounded-xl px-4 py-3 text-xs text-gray-600 font-mono break-all">
-              {typeof window !== 'undefined' ? `${window.location.origin}/p/${shareProfile.slug}` : ''}
-            </div>
-            <button
-              onClick={copyShareUrl}
-              className="w-full py-4 rounded-2xl text-white font-black text-base active:scale-95 transition-all"
-              style={{ backgroundColor: urlCopied ? '#10b981' : ACCENT }}
-            >
-              {urlCopied ? '✓ コピーしました' : 'URLをコピー'}
-            </button>
           </div>
         )}
       </BottomSheet>
@@ -398,7 +313,7 @@ export default function LibraryPage() {
                 {menuCopied ? '✓ URLをコピーしました' : 'シェア（URLをコピー）'}
               </button>
               <button
-                onClick={() => longPressMenu.type === 'template' ? deleteTemplate(longPressMenu.profile) : deleteBook(longPressMenu.profile)}
+                onClick={() => deleteBook(longPressMenu.profile)}
                 className="w-full py-4 text-rose-500 font-bold text-base rounded-2xl bg-rose-50 active:scale-95 transition-transform"
               >
                 削除
