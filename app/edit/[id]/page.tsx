@@ -7,19 +7,10 @@ import { Profile, CanvasElement, Background, PctPosition } from '@/types'
 import ProfileCanvas from '@/components/ProfileCanvas'
 import BottomSheet from '@/components/BottomSheet'
 import TemplateCard from '@/components/TemplateCard'
-import VisualCard from '@/components/VisualCard'
-import { TEMPLATES, Template, TEMPLATE_THEMES } from '@/lib/templates'
-import { STICKER_PACKS } from '@/lib/stickers'
-import { TEMPLATE_PACKS } from '@/lib/template-packs'
-import { VCardTemplate, getVisualTemplates } from '@/lib/visual-card'
+import { TEMPLATES, Template } from '@/lib/templates'
 import { v4 as uuidv4 } from 'uuid'
 
 type SheetType = 'sticker' | 'background' | 'template' | 'title' | null
-
-const getCustomStickers    = (): string[]   => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_stickers')   ?? '[]' : '[]')
-const getCustomTemplates   = (): Template[] => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_custom_templates')  ?? '[]' : '[]')
-const getDownloadedPackIds     = (): string[] => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_downloaded_packs')       ?? '[]' : '[]')
-const getDownloadedTmplPackIds = (): string[] => JSON.parse(typeof localStorage !== 'undefined' ? localStorage.getItem('tomo_downloaded_tmpl_packs') ?? '[]' : '[]')
 
 const EMOJI_LIST = [
   '😊','🌸','⭐','💕','🎀','🌈','🍓','🐱','🌙','💫',
@@ -75,31 +66,9 @@ export default function EditPage() {
   const [elements, setElements]     = useState<CanvasElement[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [sheet, setSheet]           = useState<SheetType>(null)
-  const [myStickers,        setMyStickers]        = useState<string[]>([])
-  const [myTemplates,       setMyTemplates]       = useState<Template[]>([])
-  const [myVisualTemplates, setMyVisualTemplates] = useState<VCardTemplate[]>([])
-  const [downloadedPackIds,     setDownloadedPackIds]     = useState<string[]>([])
-  const [downloadedTmplPackIds, setDownloadedTmplPackIds] = useState<string[]>([])
-  const [shopStickerPacks,      setShopStickerPacks]      = useState(STICKER_PACKS)
-  const [shopTemplatePacks,     setShopTemplatePacks]     = useState(TEMPLATE_PACKS)
   const [titleInput, setTitleInput] = useState('')
   const [isDragging, setIsDragging] = useState(false)
   const [saved, setSaved]           = useState(false)
-
-  useEffect(() => {
-    setMyStickers(getCustomStickers())
-    setMyTemplates(getCustomTemplates())
-    setMyVisualTemplates(getVisualTemplates())
-    setDownloadedPackIds(getDownloadedPackIds())
-    setDownloadedTmplPackIds(getDownloadedTmplPackIds())
-    Promise.all([
-      supabase.from('sticker_packs').select('*').order('sort_order'),
-      supabase.from('template_card_packs').select('*').order('sort_order'),
-    ]).then(([{ data: spData }, { data: tpData }]) => {
-      if (spData?.length) setShopStickerPacks(spData as unknown as typeof STICKER_PACKS)
-      if (tpData?.length) setShopTemplatePacks(tpData as unknown as typeof TEMPLATE_PACKS)
-    })
-  }, [])
 
   useEffect(() => {
     const load = async () => {
@@ -137,19 +106,6 @@ export default function EditPage() {
         ...((tmpl.id.startsWith('custom_') || tmpl.id.startsWith('pk_')) ? { templateData: tmpl } : {}),
       }, style: {},
       position: { xPct: Math.max(2, 50 - (tmpl.width / 4)), yPct: 15 + Math.random() * 25 },
-      transform: { rotation: 0, scale: 1 },
-      z_index: elements.length,
-    }
-    setElements(prev => [...prev, el])
-    setSelectedId(el.id); setSheet(null)
-    await supabase.from('elements').upsert(el)
-  }
-
-  const addVisualCard = async (tmpl: VCardTemplate) => {
-    const el: CanvasElement = {
-      id: uuidv4(), profile_id: id, type: 'visual_card',
-      content: { template: tmpl, answers: {} }, style: {},
-      position: { xPct: 5 + Math.random() * 20, yPct: 15 + Math.random() * 25 },
       transform: { rotation: 0, scale: 1 },
       z_index: elements.length,
     }
@@ -347,122 +303,30 @@ export default function EditPage() {
       </BottomSheet>
 
       <BottomSheet open={sheet === 'sticker'} onClose={() => setSheet(null)} title="スタンプ">
-        <div className="space-y-4 py-2">
-          {myStickers.length > 0 && (
-            <div>
-              <p className="text-xs text-gray-400 font-semibold mb-2">マイスタンプ</p>
-              <div className="grid grid-cols-6 gap-1">
-                {myStickers.map((emoji, i) => (
-                  <button key={i} onClick={() => addSticker(emoji)} className="h-12 flex items-center justify-center text-3xl rounded-xl active:scale-90 active:bg-pink-50 transition-all">
-                    {emoji}
-                  </button>
-                ))}
-              </div>
-              <div className="h-px bg-gray-100 mt-3" />
-            </div>
-          )}
-          {downloadedPackIds.map(packId => {
-            const pack = shopStickerPacks.find(p => p.id === packId)
-            if (!pack) return null
-            return (
-              <div key={packId}>
-                <p className="text-xs text-gray-400 font-semibold mb-2">{pack.name}</p>
-                <div className="grid grid-cols-6 gap-1">
-                  {pack.stickers.map((emoji, i) => (
-                    <button key={i} onClick={() => addSticker(emoji)} className="h-12 flex items-center justify-center text-3xl rounded-xl active:scale-90 active:bg-gray-100 transition-all">
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-                <div className="h-px bg-gray-100 mt-3" />
-              </div>
-            )
-          })}
-          <div>
-            <p className="text-xs text-gray-400 font-semibold mb-2">すべて</p>
-            <div className="grid grid-cols-6 gap-1">
-              {EMOJI_LIST.map((emoji, i) => (
-                <button key={i} onClick={() => addSticker(emoji)} className="h-12 flex items-center justify-center text-3xl rounded-xl active:scale-90 active:bg-gray-100 transition-all">
-                  {emoji}
-                </button>
-              ))}
-            </div>
+        <div className="py-2">
+          <div className="grid grid-cols-6 gap-1">
+            {EMOJI_LIST.map((emoji, i) => (
+              <button key={i} onClick={() => addSticker(emoji)} className="h-12 flex items-center justify-center text-3xl rounded-xl active:scale-90 active:bg-gray-100 transition-all">
+                {emoji}
+              </button>
+            ))}
           </div>
         </div>
       </BottomSheet>
 
       <BottomSheet open={sheet === 'template'} onClose={() => setSheet(null)} title="テンプレートカード">
-        <div className="space-y-5 py-2">
-          {myVisualTemplates.length > 0 && (
-            <div>
-              <p className="text-xs text-gray-400 font-semibold mb-2">🎨 ビジュアルカード</p>
-              <div className="grid grid-cols-2 gap-3">
-                {myVisualTemplates.map(tmpl => (
-                  <button key={tmpl.id} onClick={() => addVisualCard(tmpl)} className="flex flex-col items-center gap-2 p-2 rounded-2xl bg-gray-50 active:scale-95 transition-all overflow-hidden">
-                    <div className="pointer-events-none overflow-hidden w-full rounded-xl" style={{ height: 100 }}>
-                      <VisualCard template={tmpl} answers={{}} scale={0.52} />
-                    </div>
-                    <p className="text-xs font-bold text-gray-700 truncate w-full text-center">{tmpl.title}</p>
-                  </button>
-                ))}
-              </div>
-              <div className="h-px bg-gray-100 mt-4" />
-            </div>
-          )}
-          {myTemplates.length > 0 && (
-            <div>
-              <p className="text-xs text-gray-400 font-semibold mb-2">✏️ マイカード</p>
-              <div className="grid grid-cols-2 gap-3">
-                {myTemplates.map(tmpl => (
-                  <button key={tmpl.id} onClick={() => addTemplateCard(tmpl)} className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50 active:scale-95 transition-all">
-                    <div className="pointer-events-none overflow-hidden w-full" style={{ height: 90 }}>
-                      <div style={{ transform: 'scale(0.52)', transformOrigin: 'top left', width: '192%' }}>
-                        <TemplateCard template={tmpl} answers={{}} />
-                      </div>
-                    </div>
-                    <p className="text-xs font-bold text-gray-700 truncate w-full text-center">{tmpl.title}</p>
-                  </button>
-                ))}
-              </div>
-              <div className="h-px bg-gray-100 mt-4" />
-            </div>
-          )}
-          {downloadedTmplPackIds.map(packId => {
-            const pack = shopTemplatePacks.find(p => p.id === packId)
-            if (!pack) return null
-            return (
-              <div key={packId}>
-                <p className="text-xs text-gray-400 font-semibold mb-2">{pack.preview} {pack.name}</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {pack.templates.map(tmpl => (
-                    <button key={tmpl.id} onClick={() => addTemplateCard(tmpl)} className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50 active:scale-95 transition-all">
-                      <div className="pointer-events-none overflow-hidden w-full" style={{ height: 90 }}>
-                        <div style={{ transform: 'scale(0.52)', transformOrigin: 'top left', width: '192%' }}>
-                          <TemplateCard template={tmpl} answers={{}} />
-                        </div>
-                      </div>
-                      <p className="text-xs font-bold text-gray-700 truncate w-full text-center">{tmpl.title}</p>
-                    </button>
-                  ))}
-                </div>
-                <div className="h-px bg-gray-100 mt-4" />
-              </div>
-            )
-          })}
-          <div>
-            <p className="text-xs text-gray-400 font-semibold mb-2">すべて</p>
-            <div className="grid grid-cols-2 gap-3">
-              {TEMPLATES.map(tmpl => (
-                <button key={tmpl.id} onClick={() => addTemplateCard(tmpl)} className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50 active:scale-95 transition-all">
-                  <div className="pointer-events-none overflow-hidden w-full" style={{ height: 90 }}>
-                    <div style={{ transform: 'scale(0.52)', transformOrigin: 'top left', width: '192%' }}>
-                      <TemplateCard template={tmpl} answers={{}} />
-                    </div>
+        <div className="py-2">
+          <div className="grid grid-cols-2 gap-3">
+            {TEMPLATES.map(tmpl => (
+              <button key={tmpl.id} onClick={() => addTemplateCard(tmpl)} className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-gray-50 active:scale-95 transition-all">
+                <div className="pointer-events-none overflow-hidden w-full" style={{ height: 90 }}>
+                  <div style={{ transform: 'scale(0.52)', transformOrigin: 'top left', width: '192%' }}>
+                    <TemplateCard template={tmpl} answers={{}} />
                   </div>
-                  <p className="text-xs font-bold text-gray-700">{tmpl.title}</p>
-                </button>
-              ))}
-            </div>
+                </div>
+                <p className="text-xs font-bold text-gray-700">{tmpl.title}</p>
+              </button>
+            ))}
           </div>
         </div>
       </BottomSheet>

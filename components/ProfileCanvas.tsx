@@ -3,9 +3,7 @@
 import { useRef, useCallback } from 'react'
 import { CanvasElement, Background, PctPosition } from '@/types'
 import TemplateCard from '@/components/TemplateCard'
-import VisualCard from '@/components/VisualCard'
 import { TEMPLATES, Template } from '@/lib/templates'
-import { VCardTemplate } from '@/lib/visual-card'
 
 interface Props {
   background: Background
@@ -327,18 +325,6 @@ export default function ProfileCanvas({
                 return <TemplateCard template={tmpl} answers={c.answers} />
               })()}
 
-              {/* ── VisualCard ── */}
-              {el.type === 'visual_card' && (() => {
-                const c = el.content as { template: VCardTemplate; answers: Record<string, string> }
-                if (!c.template) return null
-                return (
-                  <VisualCard
-                    template={c.template}
-                    answers={c.answers ?? {}}
-                    scale={0.5}
-                  />
-                )
-              })()}
             </div>
           )
         })}
